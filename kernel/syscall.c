@@ -1,4 +1,5 @@
 #include <zos/console.h>
+#include <zos/initramfs.h>
 #include <zos/syscall.h>
 #include <zos/types.h>
 
@@ -13,6 +14,28 @@ static uintptr_t sys_write(uintptr_t fd, const char *buf, uintptr_t len)
     }
 
     return len;
+}
+
+static uintptr_t sys_read(uintptr_t fd, char *buf, uintptr_t len)
+{
+    uintptr_t count = 0;
+
+    if (fd == 0) {
+        while (count < len) {
+            char ch = console_getchar();
+            if (ch == '\r') {
+                ch = '\n';
+            }
+            console_putchar(ch);
+            buf[count++] = ch;
+            if (ch == '\n') {
+                break;
+            }
+        }
+        return count;
+    }
+
+    return initramfs_read((int)fd, buf, len);
 }
 
 static void sys_exit(uintptr_t status)
@@ -39,6 +62,15 @@ void syscall_handle(struct trap_frame *tf)
         break;
     case SYS_EXIT:
         sys_exit(tf->a0);
+        break;
+    case SYS_READ:
+        tf->a0 = sys_read(tf->a0, (char *)tf->a1, tf->a2);
+        break;
+    case SYS_OPEN:
+        tf->a0 = (uintptr_t)initramfs_open((const char *)tf->a0);
+        break;
+    case SYS_CLOSE:
+        tf->a0 = (uintptr_t)initramfs_close((int)tf->a0);
         break;
     default:
         console_puts("syscall: unknown ");

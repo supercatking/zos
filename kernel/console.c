@@ -2,7 +2,9 @@
 
 #define UART0_BASE 0x10000000u
 #define UART_THR   0x00u
+#define UART_RBR   0x00u
 #define UART_LSR   0x05u
+#define UART_LSR_DR 0x01u
 #define UART_LSR_THRE 0x20u
 
 static volatile unsigned char *const uart0 = (volatile unsigned char *)UART0_BASE;
@@ -20,6 +22,13 @@ void console_putchar(char ch)
     while ((uart0[UART_LSR] & UART_LSR_THRE) == 0) {
     }
     uart0[UART_THR] = (unsigned char)ch;
+}
+
+char console_getchar(void)
+{
+    while ((uart0[UART_LSR] & UART_LSR_DR) == 0) {
+    }
+    return (char)uart0[UART_RBR];
 }
 
 void console_puts(const char *text)

@@ -26,11 +26,19 @@ fi
 tmp="${TMPDIR:-/tmp}/zos-qemu-smoke.$$"
 trap 'rm -f "$tmp"' EXIT INT TERM
 
-timeout 8s qemu-system-riscv32 \
-    -machine virt \
-    -bios "$opensbi" \
-    -nographic \
-    -kernel "$kernel" >"$tmp" 2>&1 || true
+if [ "${QEMU_SMOKE_INPUT:-}" != "" ]; then
+    { sleep 1; printf "%b" "$QEMU_SMOKE_INPUT"; } | timeout 8s qemu-system-riscv32 \
+        -machine virt \
+        -bios "$opensbi" \
+        -nographic \
+        -kernel "$kernel" >"$tmp" 2>&1 || true
+else
+    timeout 8s qemu-system-riscv32 \
+        -machine virt \
+        -bios "$opensbi" \
+        -nographic \
+        -kernel "$kernel" >"$tmp" 2>&1 || true
+fi
 
 expectations="ZOS booting..."
 if [ "${QEMU_SMOKE_EXPECT:-}" != "" ]; then

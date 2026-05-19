@@ -1,5 +1,6 @@
 #include <zos/assert.h>
 #include <zos/console.h>
+#include <zos/initramfs.h>
 #include <zos/pmm.h>
 #include <zos/riscv.h>
 #include <zos/thread.h>
@@ -72,6 +73,7 @@ void kernel_main(uintptr_t hart_id, uintptr_t dtb)
     vm_init();
     vm_enable_kernel_paging();
     console_puts("vm: paging enabled\n");
+    initramfs_init();
 
     trap_init();
     console_puts("trap: initialized\n");

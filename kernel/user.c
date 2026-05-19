@@ -47,7 +47,7 @@ void user_init(void)
     copy_bytes(text_page, __user_init_start, image_size);
 
     if (vm_map(vm_kernel_table(), USER_TEXT_BASE, (uintptr_t)text_page,
-               PAGE_SIZE, PTE_R | PTE_X | PTE_U) != 0) {
+               PAGE_SIZE, PTE_R | PTE_W | PTE_X | PTE_U) != 0) {
         PANIC("user: map text failed");
     }
 

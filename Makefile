@@ -23,6 +23,7 @@ KERNEL_SRCS := \
 	kernel/start.S \
 	kernel/kernel.c \
 	kernel/console.c \
+	kernel/initramfs.c \
 	kernel/panic.c \
 	kernel/sbi.c \
 	kernel/timer.c \

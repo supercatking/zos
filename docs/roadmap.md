@@ -59,8 +59,9 @@ the kernel reports a clean `exit` status.
 
 ## M5: Initramfs and User Shell
 
-- Add a tiny read-only initramfs image.
-- Provide file-descriptor backed `open`, `read`, and `close`.
+- Add a tiny read-only initramfs image with `/README`.
+- Provide file-descriptor backed `open`, `read`, and `close`, plus terminal
+  `read`.
 - Build a user-mode shell using the serial console as its terminal.
 - Add first commands: `help`, `echo`, `cat`, `ls`, `ps`, and `reboot`.
 

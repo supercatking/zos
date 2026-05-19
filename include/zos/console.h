@@ -5,6 +5,7 @@
 
 void console_init(void);
 void console_putchar(char ch);
+char console_getchar(void);
 void console_puts(const char *text);
 void console_put_hex(uintptr_t value);
 
