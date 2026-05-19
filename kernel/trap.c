@@ -1,0 +1,38 @@
+#include <zos/console.h>
+#include <zos/panic.h>
+#include <zos/riscv.h>
+#include <zos/timer.h>
+#include <zos/trap.h>
+
+void timer_interrupt(struct trap_frame *tf) __attribute__((weak));
+
+void trap_init(void)
+{
+    w_stvec((uintptr_t)trap_entry | STVEC_MODE_DIRECT);
+}
+
+void trap_handler(struct trap_frame *tf)
+{
+    uintptr_t scause = tf->scause;
+    uintptr_t code = scause & SCAUSE_CODE_MASK;
+
+    if ((scause & SCAUSE_INTERRUPT) != 0 &&
+        code == SCAUSE_SUPERVISOR_TIMER_INTERRUPT) {
+        if (timer_interrupt != 0) {
+            timer_interrupt(tf);
+        } else {
+            timer_handle_interrupt();
+        }
+        return;
+    }
+
+    console_puts("trap: scause=");
+    console_put_hex(scause);
+    console_puts(" stval=");
+    console_put_hex(tf->stval);
+    console_puts(" sepc=");
+    console_put_hex(tf->sepc);
+    console_puts("\n");
+
+    PANIC("unhandled supervisor trap");
+}

@@ -13,7 +13,7 @@ CC := $(CROSS_COMPILE)gcc
 OBJCOPY := $(CROSS_COMPILE)objcopy
 OBJDUMP := $(CROSS_COMPILE)objdump
 
-ARCH_FLAGS := -march=rv32ima -mabi=ilp32 -mcmodel=medany
+ARCH_FLAGS := -march=rv32ima_zicsr_zicntr -mabi=ilp32 -mcmodel=medany
 WARN_FLAGS := -Wall -Wextra -Werror -ffreestanding -fno-builtin -fno-pic -fno-pie
 CFLAGS := $(ARCH_FLAGS) $(WARN_FLAGS) -std=c11 -O2 -g -Iinclude
 ASFLAGS := $(ARCH_FLAGS) -g -Iinclude
@@ -23,7 +23,13 @@ KERNEL_SRCS := \
 	kernel/start.S \
 	kernel/kernel.c \
 	kernel/console.c \
-	kernel/panic.c
+	kernel/panic.c \
+	kernel/sbi.c \
+	kernel/timer.c \
+	kernel/thread.c \
+	kernel/switch.S \
+	kernel/trap.c \
+	kernel/trap_entry.S
 
 KERNEL_OBJS := $(patsubst %.S,$(BUILD_DIR)/%.o,$(patsubst %.c,$(BUILD_DIR)/%.o,$(KERNEL_SRCS)))
 

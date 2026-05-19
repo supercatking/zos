@@ -1,4 +1,9 @@
+#include <zos/assert.h>
 #include <zos/console.h>
+#include <zos/riscv.h>
+#include <zos/thread.h>
+#include <zos/timer.h>
+#include <zos/trap.h>
 #include <zos/types.h>
 
 extern char __kernel_start[];
@@ -19,6 +24,20 @@ static void print_addr(const char *name, const void *addr)
     console_puts(" = ");
     console_put_hex((uintptr_t)addr);
     console_puts("\n");
+}
+
+static void worker_thread(void *arg)
+{
+    const char *name = (const char *)arg;
+
+    for (int i = 0; i < 4; i++) {
+        console_puts("thread: ");
+        console_puts(name);
+        console_puts(" iteration ");
+        console_put_hex((uintptr_t)i);
+        console_puts("\n");
+        thread_yield();
+    }
 }
 
 void kernel_main(uintptr_t hart_id, uintptr_t dtb)
@@ -44,9 +63,17 @@ void kernel_main(uintptr_t hart_id, uintptr_t dtb)
     print_addr("__bss_start", __bss_start);
     print_addr("__bss_end", __bss_end);
     print_addr("__kernel_end", __kernel_end);
-    console_puts("ZOS halt loop entered.\n");
 
-    for (;;) {
-        __asm__ volatile("wfi");
-    }
+    trap_init();
+    console_puts("trap: initialized\n");
+
+    timer_init();
+    csr_set(sie, SIE_STIE);
+    intr_on();
+    console_puts("timer: initialized\n");
+
+    thread_init();
+    ASSERT(thread_create("alpha", worker_thread, "alpha") >= 0);
+    ASSERT(thread_create("beta", worker_thread, "beta") >= 0);
+    thread_start_scheduler();
 }

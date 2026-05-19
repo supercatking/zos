@@ -28,10 +28,12 @@ Exit criteria: QEMU boots the kernel and prints a deterministic banner.
 - Set up supervisor-mode trap entry and register save/restore frame.
 - Decode exceptions and interrupts enough for useful diagnostics.
 - Configure timer interrupts on the QEMU `virt` platform.
-- Add simple assertions or smoke tests for trap handling.
+- Add cooperative kernel threads with explicit context switching.
+- Add smoke-testable output for trap initialization, timer ticks, and thread
+  switching.
 
-Exit criteria: illegal instruction, breakpoint, and timer paths are observable
-and do not corrupt kernel state.
+Exit criteria: QEMU prints `trap: initialized`, `timer: initialized`, alternating
+thread iterations, and periodic timer ticks without corrupting kernel state.
 
 ## M3: Memory Management
 
