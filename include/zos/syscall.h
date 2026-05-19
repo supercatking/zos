@@ -8,6 +8,8 @@
 #define SYS_READ 3u
 #define SYS_OPEN 4u
 #define SYS_CLOSE 5u
+#define SYS_SLEEP 6u
+#define SYS_KILL 7u
 
 void syscall_handle(struct trap_frame *tf);
 

@@ -69,10 +69,10 @@ Exit criteria: QEMU boots into a user-facing shell that can run simple commands.
 
 ## M6: Linux-like Extensions
 
-- Extend process control with `sleep`, `kill`, and richer exit status.
-- Add a VFS layer that can expose initramfs, console, and proc-like nodes.
+- Extend syscall surface with `sleep`, `kill`, and clearer exit status output.
+- Expose initramfs plus a proc-like `/proc/status` node.
 - Prepare virtio-blk as the next storage backend without blocking the shell.
 - Add regression tests for multi-program shell workflows.
 
-Exit criteria: QEMU can run several small user programs and report process
-state from the shell.
+Exit criteria: `make regression` drives the user shell through `help`, `ls`,
+`cat`, `ps`, `sleep`, `kill`, and `reboot`.

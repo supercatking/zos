@@ -18,8 +18,14 @@ static const char readme[] =
     "ZOS README\n"
     "A tiny RISC-V32 teaching OS with a user-mode shell.\n";
 
+static const char proc_status[] =
+    "pid: 1\n"
+    "name: sh\n"
+    "state: running\n";
+
 static const struct initramfs_file files[] = {
     {"/README", readme, sizeof(readme) - 1u},
+    {"/proc/status", proc_status, sizeof(proc_status) - 1u},
 };
 
 static struct open_file open_files[INITRAMFS_MAX_OPEN];
@@ -102,5 +108,5 @@ int initramfs_close(int fd)
 
 const char *initramfs_list(void)
 {
-    return "/README\n";
+    return "/README\n/proc/status\n";
 }

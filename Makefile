@@ -39,7 +39,7 @@ KERNEL_SRCS := \
 
 KERNEL_OBJS := $(patsubst %.S,$(BUILD_DIR)/%.o,$(patsubst %.c,$(BUILD_DIR)/%.o,$(KERNEL_SRCS)))
 
-.PHONY: all build run test clean toolchain
+.PHONY: all build run test regression clean toolchain
 
 all: build
 
@@ -71,6 +71,11 @@ run: build
 	qemu-system-riscv32 -machine virt -bios $(OPENSBI_RV32) -nographic -kernel $(KERNEL_ELF)
 
 test: build
+	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
+
+regression: build
+	QEMU_SMOKE_INPUT='help\nls\ncat\nps\nsleep\nkill\nreboot\n' \
+	QEMU_SMOKE_EXPECT='commands: help;ZOS README;pid  name;sleep done;kill: pid 1 noted;user: halted cleanly' \
 	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
 
 clean:

@@ -37,6 +37,10 @@ shell_loop:
     beq t0, t1, cmd_cat
     li t1, 'p'
     beq t0, t1, cmd_ps
+    li t1, 's'
+    beq t0, t1, cmd_sleep
+    li t1, 'k'
+    beq t0, t1, cmd_kill
     li t1, 'r'
     beq t0, t1, cmd_reboot
     j cmd_unknown
@@ -44,7 +48,7 @@ shell_loop:
 cmd_help:
     li a0, 1
     load_addr a1, help_msg
-    li a2, 37
+    li a2, 48
     li a7, 1
     ecall
     j shell_loop
@@ -60,7 +64,7 @@ cmd_echo:
 cmd_ls:
     li a0, 1
     load_addr a1, ls_msg
-    li a2, 8
+    li a2, 21
     li a7, 1
     ecall
     j shell_loop
@@ -114,6 +118,28 @@ cmd_unknown:
     ecall
     j shell_loop
 
+cmd_sleep:
+    li a0, 5
+    li a7, 6
+    ecall
+    li a0, 1
+    load_addr a1, sleep_msg
+    li a2, 11
+    li a7, 1
+    ecall
+    j shell_loop
+
+cmd_kill:
+    li a0, 1
+    li a7, 7
+    ecall
+    li a0, 1
+    load_addr a1, kill_msg
+    li a2, 18
+    li a7, 1
+    ecall
+    j shell_loop
+
 cmd_reboot:
     li a0, 0
     li a7, 2
@@ -125,15 +151,19 @@ halt:
 prompt:
     .ascii "zos$ "
 help_msg:
-    .ascii "commands: help echo ls cat ps reboot\n"
+    .ascii "commands: help echo ls cat ps sleep kill reboot\n"
 ls_msg:
-    .ascii "/README\n"
+    .ascii "/README\n/proc/status\n"
 readme_path:
     .asciz "/README"
 cat_fail_msg:
     .ascii "cat: not found\n"
 ps_msg:
     .ascii "pid  name\n1    sh\n"
+sleep_msg:
+    .ascii "sleep done\n"
+kill_msg:
+    .ascii "kill: pid 1 noted\n"
 unknown_msg:
     .ascii "unknown command\n"
 
