@@ -1,10 +1,12 @@
 #include <zos/assert.h>
 #include <zos/console.h>
+#include <zos/pmm.h>
 #include <zos/riscv.h>
 #include <zos/thread.h>
 #include <zos/timer.h>
 #include <zos/trap.h>
 #include <zos/types.h>
+#include <zos/vm.h>
 
 extern char __kernel_start[];
 extern char __text_start[];
@@ -63,6 +65,12 @@ void kernel_main(uintptr_t hart_id, uintptr_t dtb)
     print_addr("__bss_start", __bss_start);
     print_addr("__bss_end", __bss_end);
     print_addr("__kernel_end", __kernel_end);
+
+    pmm_init();
+    pmm_self_test();
+    vm_init();
+    vm_enable_kernel_paging();
+    console_puts("vm: paging enabled\n");
 
     trap_init();
     console_puts("trap: initialized\n");

@@ -27,8 +27,10 @@ KERNEL_SRCS := \
 	kernel/sbi.c \
 	kernel/timer.c \
 	kernel/thread.c \
+	kernel/pmm.c \
 	kernel/switch.S \
 	kernel/trap.c \
+	kernel/vm.c \
 	kernel/trap_entry.S
 
 KERNEL_OBJS := $(patsubst %.S,$(BUILD_DIR)/%.o,$(patsubst %.c,$(BUILD_DIR)/%.o,$(KERNEL_SRCS)))

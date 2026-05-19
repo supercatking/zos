@@ -39,11 +39,12 @@ thread iterations, and periodic timer ticks without corrupting kernel state.
 
 - Define physical memory ranges for the QEMU `virt` machine.
 - Add a page allocator for fixed-size pages.
-- Introduce kernel virtual memory if the teaching path uses paging at this
-  stage.
+- Introduce Sv32 kernel paging with an identity map for UART and RAM.
 - Document memory layout and ownership rules.
 
-Exit criteria: kernel allocations are repeatable, bounded, and testable.
+Exit criteria: QEMU prints the PMM range, PMM self-test pass, kernel page table
+readiness, and paging enabled while the M2 trap/timer/thread smoke test still
+passes.
 
 ## M4: User Mode and System Calls
 
