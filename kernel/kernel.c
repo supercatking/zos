@@ -6,6 +6,7 @@
 #include <zos/timer.h>
 #include <zos/trap.h>
 #include <zos/types.h>
+#include <zos/user.h>
 #include <zos/vm.h>
 
 extern char __kernel_start[];
@@ -83,5 +84,9 @@ void kernel_main(uintptr_t hart_id, uintptr_t dtb)
     thread_init();
     ASSERT(thread_create("alpha", worker_thread, "alpha") >= 0);
     ASSERT(thread_create("beta", worker_thread, "beta") >= 0);
-    thread_start_scheduler();
+    thread_yield();
+    console_puts("thread: cooperative smoke complete\n");
+
+    user_init();
+    user_enter(USER_TEXT_BASE, USER_STACK_TOP);
 }

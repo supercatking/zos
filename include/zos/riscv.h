@@ -6,6 +6,7 @@
 #define SSTATUS_SIE (1u << 1)
 #define SSTATUS_SPIE (1u << 5)
 #define SSTATUS_SPP (1u << 8)
+#define SSTATUS_SUM (1u << 18)
 
 #define SIE_SSIE (1u << 1)
 #define SIE_STIE (1u << 5)
@@ -20,6 +21,7 @@
 #define SCAUSE_SUPERVISOR_SOFTWARE_INTERRUPT 1u
 #define SCAUSE_SUPERVISOR_TIMER_INTERRUPT 5u
 #define SCAUSE_SUPERVISOR_EXTERNAL_INTERRUPT 9u
+#define SCAUSE_USER_ECALL 8u
 
 #define STVEC_MODE_DIRECT 0u
 #define STVEC_MODE_VECTORED 1u

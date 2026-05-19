@@ -1,6 +1,7 @@
 #include <zos/console.h>
 #include <zos/panic.h>
 #include <zos/riscv.h>
+#include <zos/syscall.h>
 #include <zos/timer.h>
 #include <zos/trap.h>
 
@@ -23,6 +24,11 @@ void trap_handler(struct trap_frame *tf)
         } else {
             timer_handle_interrupt();
         }
+        return;
+    }
+
+    if ((scause & SCAUSE_INTERRUPT) == 0 && code == SCAUSE_USER_ECALL) {
+        syscall_handle(tf);
         return;
     }
 

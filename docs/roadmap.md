@@ -50,11 +50,12 @@ passes.
 
 - Add user address space setup and transition from kernel to user mode.
 - Load simple user programs from linked-in images or an initramfs.
-- Implement a small syscall ABI for `write`, `read`, `exit`, `wait`, `fork`,
-  `exec`, `open`, and `close`.
+- Implement the first syscall ABI for `write` and `exit`; keep `read`, `wait`,
+  `fork`, `exec`, `open`, and `close` for M5/M6 expansion.
 - Validate user pointers before the kernel touches user memory.
 
-Exit criteria: a user program can print through a syscall and exit cleanly.
+Exit criteria: QEMU enters U-mode, a user program prints through `write`, and
+the kernel reports a clean `exit` status.
 
 ## M5: Initramfs and User Shell
 

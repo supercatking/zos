@@ -29,7 +29,10 @@ KERNEL_SRCS := \
 	kernel/thread.c \
 	kernel/pmm.c \
 	kernel/switch.S \
+	kernel/syscall.c \
 	kernel/trap.c \
+	kernel/user.c \
+	kernel/user_init.S \
 	kernel/vm.c \
 	kernel/trap_entry.S
 
