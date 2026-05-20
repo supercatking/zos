@@ -60,9 +60,9 @@ static long sys_create(const char *path)
     return syscall3(SYS_CREATE, (uintptr_t)path, 0, 0);
 }
 
-static long sys_list(char *buf, size_t len)
+static long sys_list(const char *path, char *buf, size_t len)
 {
-    return syscall3(SYS_LIST, (uintptr_t)buf, len, 0);
+    return syscall3(SYS_LIST, (uintptr_t)buf, len, (uintptr_t)path);
 }
 
 static long sys_unlink(const char *path)
@@ -288,10 +288,9 @@ static int cmd_echo(int argc, char **argv)
 
 static int cmd_ls(int argc, char **argv)
 {
-    (void)argc;
-    (void)argv;
+    const char *path = argc > 1 ? argv[1] : "/";
     char buf[128];
-    long n = sys_list(buf, sizeof(buf));
+    long n = sys_list(path, buf, sizeof(buf));
     if (n > 0) {
         (void)sys_write(1, buf, (size_t)n);
     }

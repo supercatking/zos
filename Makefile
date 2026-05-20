@@ -4,6 +4,19 @@ KERNEL_BIN := $(BUILD_DIR)/kernel.bin
 USER_SHELL_ELF := $(BUILD_DIR)/user/shell.elf
 USER_SHELL_BIN := $(BUILD_DIR)/user/shell.bin
 USER_SHELL_OBJ := $(BUILD_DIR)/user/shell_bin.o
+USER_ECHO_ELF := $(BUILD_DIR)/user/bin/echo.elf
+USER_ECHO_BIN := $(BUILD_DIR)/user/bin/echo.bin
+USER_ECHO_OBJ := $(BUILD_DIR)/user/bin/echo_bin.o
+USER_CAT_ELF := $(BUILD_DIR)/user/bin/cat.elf
+USER_CAT_BIN := $(BUILD_DIR)/user/bin/cat.bin
+USER_CAT_OBJ := $(BUILD_DIR)/user/bin/cat_bin.o
+USER_LS_ELF := $(BUILD_DIR)/user/bin/ls.elf
+USER_LS_BIN := $(BUILD_DIR)/user/bin/ls.bin
+USER_LS_OBJ := $(BUILD_DIR)/user/bin/ls_bin.o
+USER_HELP_ELF := $(BUILD_DIR)/user/bin/help.elf
+USER_HELP_BIN := $(BUILD_DIR)/user/bin/help.bin
+USER_HELP_OBJ := $(BUILD_DIR)/user/bin/help_bin.o
+USER_PROGRAM_OBJS := $(USER_SHELL_OBJ) $(USER_ECHO_OBJ) $(USER_CAT_OBJ) $(USER_LS_OBJ) $(USER_HELP_OBJ)
 OPENSBI_RV32 := /usr/lib/riscv32-linux-gnu/opensbi/generic/fw_dynamic.bin
 
 ifneq ($(shell command -v riscv64-unknown-elf-gcc 2>/dev/null),)
@@ -42,7 +55,7 @@ KERNEL_SRCS := \
 	kernel/trap_entry.S
 
 KERNEL_OBJS := $(patsubst %.S,$(BUILD_DIR)/%.o,$(patsubst %.c,$(BUILD_DIR)/%.o,$(KERNEL_SRCS)))
-KERNEL_OBJS += $(USER_SHELL_OBJ)
+KERNEL_OBJS += $(USER_PROGRAM_OBJS)
 
 .PHONY: all build run test regression clean toolchain
 
@@ -77,6 +90,42 @@ $(USER_SHELL_BIN): $(USER_SHELL_ELF)
 	$(OBJCOPY) -O binary $< $@
 
 $(USER_SHELL_OBJ): $(USER_SHELL_BIN)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
+$(USER_ECHO_ELF): $(BUILD_DIR)/user/bin/echo.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/echo.o -o $@
+
+$(USER_ECHO_BIN): $(USER_ECHO_ELF)
+	$(OBJCOPY) -O binary $< $@
+
+$(USER_ECHO_OBJ): $(USER_ECHO_BIN)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
+$(USER_CAT_ELF): $(BUILD_DIR)/user/bin/cat.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/cat.o -o $@
+
+$(USER_CAT_BIN): $(USER_CAT_ELF)
+	$(OBJCOPY) -O binary $< $@
+
+$(USER_CAT_OBJ): $(USER_CAT_BIN)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
+$(USER_LS_ELF): $(BUILD_DIR)/user/bin/ls.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/ls.o -o $@
+
+$(USER_LS_BIN): $(USER_LS_ELF)
+	$(OBJCOPY) -O binary $< $@
+
+$(USER_LS_OBJ): $(USER_LS_BIN)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
+$(USER_HELP_ELF): $(BUILD_DIR)/user/bin/help.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/help.o -o $@
+
+$(USER_HELP_BIN): $(USER_HELP_ELF)
+	$(OBJCOPY) -O binary $< $@
+
+$(USER_HELP_OBJ): $(USER_HELP_BIN)
 	$(LD) -m elf32lriscv -r -b binary -o $@ $<
 
 $(KERNEL_ELF): toolchain $(KERNEL_OBJS) kernel/linker.ld

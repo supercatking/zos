@@ -74,6 +74,7 @@ void kernel_main(uintptr_t hart_id, uintptr_t dtb)
     vm_enable_kernel_paging();
     console_puts("vm: paging enabled\n");
     initramfs_init();
+    user_register_programs();
 
     trap_init();
     console_puts("trap: initialized\n");

@@ -2,13 +2,14 @@
 #include <zos/initramfs.h>
 
 #define INITRAMFS_MAX_OPEN 4
-#define RAMFS_MAX_FILES 8
+#define RAMFS_MAX_FILES 16
 #define RAMFS_NAME_MAX 32
 #define RAMFS_DATA_MAX 256
 
 struct initramfs_file {
     char path[RAMFS_NAME_MAX];
     char data[RAMFS_DATA_MAX];
+    const char *static_data;
     uintptr_t len;
     int used;
     int writable;
@@ -123,7 +124,7 @@ static struct initramfs_file *find_file(const char *path)
     return 0;
 }
 
-static void add_static_file(const char *path, const char *data, uintptr_t len)
+int initramfs_add_static_file(const char *path, const char *data, uintptr_t len)
 {
     for (size_t i = 0; i < RAMFS_MAX_FILES; i++) {
         if (!files[i].used) {
@@ -131,11 +132,16 @@ static void add_static_file(const char *path, const char *data, uintptr_t len)
             files[i].writable = 0;
             files[i].is_dir = 0;
             files[i].len = len;
+            files[i].static_data = data;
             copy_string(files[i].path, path, sizeof(files[i].path));
-            copy_data(files[i].data, data, len);
-            return;
+            if (data != 0 && len <= RAMFS_DATA_MAX) {
+                copy_data(files[i].data, data, len);
+            }
+            return 0;
         }
     }
+
+    return -1;
 }
 
 void initramfs_init(void)
@@ -143,6 +149,7 @@ void initramfs_init(void)
     for (int i = 0; i < RAMFS_MAX_FILES; i++) {
         files[i].used = 0;
         files[i].len = 0;
+        files[i].static_data = 0;
         files[i].writable = 0;
         files[i].is_dir = 0;
     }
@@ -152,8 +159,8 @@ void initramfs_init(void)
         open_files[i].offset = 0;
     }
 
-    add_static_file("/README", readme, sizeof(readme) - 1u);
-    add_static_file("/proc/status", proc_status, sizeof(proc_status) - 1u);
+    (void)initramfs_add_static_file("/README", readme, sizeof(readme) - 1u);
+    (void)initramfs_add_static_file("/proc/status", proc_status, sizeof(proc_status) - 1u);
     console_puts("initramfs: ready\n");
 }
 
@@ -195,6 +202,7 @@ int initramfs_create(const char *path)
             files[i].writable = 1;
             files[i].is_dir = 0;
             files[i].len = 0;
+            files[i].static_data = 0;
             copy_string(files[i].path, path, sizeof(files[i].path));
             return 0;
         }
@@ -215,6 +223,7 @@ int initramfs_mkdir(const char *path)
             files[i].writable = 0;
             files[i].is_dir = 1;
             files[i].len = 0;
+            files[i].static_data = 0;
             copy_string(files[i].path, path, sizeof(files[i].path));
             return 0;
         }
@@ -234,7 +243,10 @@ uintptr_t initramfs_read(int fd, char *buf, uintptr_t len)
     }
 
     while (count < len && open_files[slot].offset < open_files[slot].file->len) {
-        buf[count++] = open_files[slot].file->data[open_files[slot].offset++];
+        const char *src = open_files[slot].file->static_data != 0 ?
+                              open_files[slot].file->static_data :
+                              open_files[slot].file->data;
+        buf[count++] = src[open_files[slot].offset++];
     }
 
     return count;
@@ -275,16 +287,31 @@ int initramfs_close(int fd)
     return 0;
 }
 
-uintptr_t initramfs_list(char *buf, uintptr_t len)
+uintptr_t initramfs_list(const char *path, char *buf, uintptr_t len)
 {
     uintptr_t out = 0;
+    const char *prefix = path;
+
+    if (prefix == 0 || prefix[0] == '\0') {
+        prefix = "/";
+    }
 
     for (size_t i = 0; i < RAMFS_MAX_FILES; i++) {
         if (!files[i].used) {
             continue;
         }
-        for (uintptr_t j = 0; files[i].path[j] != '\0' && out < len; j++) {
-            buf[out++] = files[i].path[j];
+
+        if (!streq(prefix, "/") && !starts_with(files[i].path, prefix)) {
+            continue;
+        }
+
+        const char *name = files[i].path;
+        if (streq(prefix, "/bin") && starts_with(files[i].path, "/bin/")) {
+            name = files[i].path + 5;
+        }
+
+        for (uintptr_t j = 0; name[j] != '\0' && out < len; j++) {
+            buf[out++] = name[j];
         }
         if (out < len) {
             buf[out++] = '\n';

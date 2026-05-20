@@ -165,7 +165,7 @@ void syscall_handle(struct trap_frame *tf)
         tf->a0 = (uintptr_t)initramfs_create((const char *)tf->a0);
         break;
     case SYS_LIST:
-        tf->a0 = initramfs_list((char *)tf->a0, tf->a1);
+        tf->a0 = initramfs_list((const char *)tf->a2, (char *)tf->a0, tf->a1);
         break;
     case SYS_UNLINK:
         tf->a0 = (uintptr_t)initramfs_unlink((const char *)tf->a0);

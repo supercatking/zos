@@ -1,4 +1,5 @@
 #include <zos/console.h>
+#include <zos/initramfs.h>
 #include <zos/memlayout.h>
 #include <zos/panic.h>
 #include <zos/pmm.h>
@@ -8,6 +9,35 @@
 
 extern char _binary_build_user_shell_bin_start[];
 extern char _binary_build_user_shell_bin_end[];
+extern char _binary_build_user_bin_echo_bin_start[];
+extern char _binary_build_user_bin_echo_bin_end[];
+extern char _binary_build_user_bin_cat_bin_start[];
+extern char _binary_build_user_bin_cat_bin_end[];
+extern char _binary_build_user_bin_ls_bin_start[];
+extern char _binary_build_user_bin_ls_bin_end[];
+extern char _binary_build_user_bin_help_bin_start[];
+extern char _binary_build_user_bin_help_bin_end[];
+
+static void add_program(const char *path, const char *start, const char *end)
+{
+    if (initramfs_add_static_file(path, start, (uintptr_t)(end - start)) != 0) {
+        PANIC("user: add program failed");
+    }
+}
+
+void user_register_programs(void)
+{
+    add_program("/bin/sh", _binary_build_user_shell_bin_start,
+                _binary_build_user_shell_bin_end);
+    add_program("/bin/echo", _binary_build_user_bin_echo_bin_start,
+                _binary_build_user_bin_echo_bin_end);
+    add_program("/bin/cat", _binary_build_user_bin_cat_bin_start,
+                _binary_build_user_bin_cat_bin_end);
+    add_program("/bin/ls", _binary_build_user_bin_ls_bin_start,
+                _binary_build_user_bin_ls_bin_end);
+    add_program("/bin/help", _binary_build_user_bin_help_bin_start,
+                _binary_build_user_bin_help_bin_end);
+}
 
 static void copy_bytes(void *dst, const void *src, size_t len)
 {
