@@ -12,6 +12,10 @@
 #define SYS_KILL 7u
 #define SYS_CREATE 8u
 #define SYS_LIST 9u
+#define SYS_UNLINK 10u
+#define SYS_STAT 11u
+#define SYS_MKDIR 12u
+#define SYS_RENAME 13u
 
 void syscall_handle(struct trap_frame *tf);
 

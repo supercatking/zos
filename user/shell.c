@@ -10,6 +10,10 @@ typedef unsigned int size_t;
 #define SYS_KILL 7u
 #define SYS_CREATE 8u
 #define SYS_LIST 9u
+#define SYS_UNLINK 10u
+#define SYS_STAT 11u
+#define SYS_MKDIR 12u
+#define SYS_RENAME 13u
 
 #define MAX_LINE 96
 #define MAX_ARGS 8
@@ -56,6 +60,26 @@ static long sys_create(const char *path)
 static long sys_list(char *buf, size_t len)
 {
     return syscall3(SYS_LIST, (uintptr_t)buf, len, 0);
+}
+
+static long sys_unlink(const char *path)
+{
+    return syscall3(SYS_UNLINK, (uintptr_t)path, 0, 0);
+}
+
+static long sys_stat(const char *path, char *buf, size_t len)
+{
+    return syscall3(SYS_STAT, (uintptr_t)path, (uintptr_t)buf, len);
+}
+
+static long sys_mkdir(const char *path)
+{
+    return syscall3(SYS_MKDIR, (uintptr_t)path, 0, 0);
+}
+
+static long sys_rename(const char *old_path, const char *new_path)
+{
+    return syscall3(SYS_RENAME, (uintptr_t)old_path, (uintptr_t)new_path, 0);
 }
 
 static long sys_sleep(uintptr_t ticks)
@@ -258,6 +282,103 @@ static int cmd_touch(int argc, char **argv)
     return 0;
 }
 
+static int cmd_rm(int argc, char **argv)
+{
+    if (argc < 2) {
+        puts("rm: missing file\n");
+        return -1;
+    }
+    if (sys_unlink(argv[1]) < 0) {
+        puts("rm: failed\n");
+        return -1;
+    }
+    return 0;
+}
+
+static int cmd_mkdir(int argc, char **argv)
+{
+    if (argc < 2) {
+        puts("mkdir: missing dir\n");
+        return -1;
+    }
+    if (sys_mkdir(argv[1]) < 0) {
+        puts("mkdir: failed\n");
+        return -1;
+    }
+    return 0;
+}
+
+static int cmd_rmdir(int argc, char **argv)
+{
+    return cmd_rm(argc, argv);
+}
+
+static int cmd_stat(int argc, char **argv)
+{
+    char buf[96];
+
+    if (argc < 2) {
+        puts("stat: missing file\n");
+        return -1;
+    }
+
+    long n = sys_stat(argv[1], buf, sizeof(buf));
+    if (n < 0) {
+        puts("stat: not found\n");
+        return -1;
+    }
+    (void)sys_write(1, buf, (size_t)n);
+    return 0;
+}
+
+static int cmd_cp(int argc, char **argv)
+{
+    char buf[96];
+
+    if (argc < 3) {
+        puts("cp: missing operand\n");
+        return -1;
+    }
+
+    long src = sys_open(argv[1]);
+    if (src < 0 || sys_create(argv[2]) < 0) {
+        puts("cp: failed\n");
+        return -1;
+    }
+
+    long dst = sys_open(argv[2]);
+    if (dst < 0) {
+        (void)sys_close((int)src);
+        puts("cp: failed\n");
+        return -1;
+    }
+
+    for (;;) {
+        long n = sys_read((int)src, buf, sizeof(buf));
+        if (n <= 0) {
+            break;
+        }
+        (void)sys_write((int)dst, buf, (size_t)n);
+    }
+
+    (void)sys_close((int)src);
+    (void)sys_close((int)dst);
+    return 0;
+}
+
+static int cmd_mv(int argc, char **argv)
+{
+    if (argc < 3) {
+        puts("mv: missing operand\n");
+        return -1;
+    }
+    if (sys_rename(argv[1], argv[2]) < 0) {
+        puts("mv: failed\n");
+        return -1;
+    }
+    return 0;
+}
+
 static int cmd_clear(int argc, char **argv)
 {
     (void)argc;
@@ -289,6 +410,12 @@ static const struct command commands[] = {
     {"kill", cmd_kill},
     {"pwd", cmd_pwd},
     {"touch", cmd_touch},
+    {"rm", cmd_rm},
+    {"mkdir", cmd_mkdir},
+    {"rmdir", cmd_rmdir},
+    {"stat", cmd_stat},
+    {"cp", cmd_cp},
+    {"mv", cmd_mv},
     {"clear", cmd_clear},
     {"reboot", cmd_reboot},
 };
