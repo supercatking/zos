@@ -217,6 +217,9 @@ void syscall_handle(struct trap_frame *tf)
     case SYS_GETPID:
         tf->a0 = (uintptr_t)user_getpid();
         break;
+    case SYS_PROCINFO:
+        tf->a0 = user_procinfo((char *)tf->a0, tf->a1);
+        break;
     default:
         console_puts("syscall: unknown ");
         console_put_hex(number);

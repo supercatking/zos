@@ -34,6 +34,7 @@ The trap handler advances `sepc` by 4 before returning from handled syscalls.
 | 17 | `fork` | none | `0` in child, child pid in parent, or `-1` |
 | 18 | `wait` | none | child pid or `-1` |
 | 19 | `getpid` | none | current pid |
+| 20 | `procinfo` | `a0=buf`, `a1=len` | bytes written |
 
 Fd `0` reads from the serial terminal. Fd `1` and `2` write to the serial
 terminal. File descriptors from `3` upward refer to ramfs files and support
@@ -41,9 +42,11 @@ terminal. File descriptors from `3` upward refer to ramfs files and support
 
 ## Current User Program
 
-The user shell is linked into the kernel image, copied into one or more user
-text pages, mapped with `PTE_U`, and entered with `sret`.
+The user shell and `/bin/*` programs are linked into the kernel image and loaded
+from the in-kernel ramfs. Each process owns its own Sv32 user page table, user
+text pages, and user stack page. Kernel mappings are shared into each process
+page table.
 
-The first process model is synchronous and educational: `fork` snapshots the
-parent user image, the child runs immediately, and `wait` reaps the child after
-the kernel restores the parent image.
+`fork` creates a child process with copied user pages. M8 still runs child work
+synchronously until the M9 scheduler lands, but parent/child memory is already
+isolated and `wait` reaps zombie children through the process table.

@@ -16,7 +16,13 @@ USER_LS_OBJ := $(BUILD_DIR)/user/bin/ls_bin.o
 USER_HELP_ELF := $(BUILD_DIR)/user/bin/help.elf
 USER_HELP_BIN := $(BUILD_DIR)/user/bin/help.bin
 USER_HELP_OBJ := $(BUILD_DIR)/user/bin/help_bin.o
-USER_PROGRAM_OBJS := $(USER_SHELL_OBJ) $(USER_ECHO_OBJ) $(USER_CAT_OBJ) $(USER_LS_OBJ) $(USER_HELP_OBJ)
+USER_FORKTEST_ELF := $(BUILD_DIR)/user/bin/forktest.elf
+USER_FORKTEST_BIN := $(BUILD_DIR)/user/bin/forktest.bin
+USER_FORKTEST_OBJ := $(BUILD_DIR)/user/bin/forktest_bin.o
+USER_VMTEST_ELF := $(BUILD_DIR)/user/bin/vmtest.elf
+USER_VMTEST_BIN := $(BUILD_DIR)/user/bin/vmtest.bin
+USER_VMTEST_OBJ := $(BUILD_DIR)/user/bin/vmtest_bin.o
+USER_PROGRAM_OBJS := $(USER_SHELL_OBJ) $(USER_ECHO_OBJ) $(USER_CAT_OBJ) $(USER_LS_OBJ) $(USER_HELP_OBJ) $(USER_FORKTEST_OBJ) $(USER_VMTEST_OBJ)
 OPENSBI_RV32 := /usr/lib/riscv32-linux-gnu/opensbi/generic/fw_dynamic.bin
 
 ifneq ($(shell command -v riscv64-unknown-elf-gcc 2>/dev/null),)
@@ -128,6 +134,24 @@ $(USER_HELP_BIN): $(USER_HELP_ELF)
 $(USER_HELP_OBJ): $(USER_HELP_BIN)
 	$(LD) -m elf32lriscv -r -b binary -o $@ $<
 
+$(USER_FORKTEST_ELF): $(BUILD_DIR)/user/bin/forktest.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/forktest.o -o $@
+
+$(USER_FORKTEST_BIN): $(USER_FORKTEST_ELF)
+	$(OBJCOPY) -O binary $< $@
+
+$(USER_FORKTEST_OBJ): $(USER_FORKTEST_BIN)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
+$(USER_VMTEST_ELF): $(BUILD_DIR)/user/bin/vmtest.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/vmtest.o -o $@
+
+$(USER_VMTEST_BIN): $(USER_VMTEST_ELF)
+	$(OBJCOPY) -O binary $< $@
+
+$(USER_VMTEST_OBJ): $(USER_VMTEST_BIN)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
 $(KERNEL_ELF): toolchain $(KERNEL_OBJS) kernel/linker.ld
 	$(CC) $(ARCH_FLAGS) $(LDFLAGS) $(KERNEL_OBJS) -o $@
 
@@ -141,8 +165,8 @@ test: build
 	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
 
 regression: build
-	QEMU_SMOKE_INPUT='help\nwhich echo\n/bin/echo hello\necho hello\ntouch a\nls /bin\nls\necho hello > a\ncat a\ncat /README\nps\npwd\nclear\nenv\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
-	QEMU_SMOKE_EXPECT='commands:;echo;hello;sh;echo;cat;ls;help;a;ZOS README;pid: 1;PATH=/bin;history;lines=1 words=1 bytes=6;user: halted cleanly' \
+	QEMU_SMOKE_INPUT='help\nwhich echo\n/bin/echo hello\necho hello\n/bin/forktest\n/bin/vmtest\ntouch a\nls /bin\nls\necho hello > a\ncat a\ncat /README\nps\npwd\nclear\nenv\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
+	QEMU_SMOKE_EXPECT='commands:;echo;hello;forktest: child saw 0;forktest: wait reaped child;vmtest: isolation ok;forktest;vmtest;a;ZOS README;pid: 1 ppid: 0 state: running name: sh;PATH=/bin;history;lines=1 words=1 bytes=6;user: halted cleanly' \
 	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
 
 clean:

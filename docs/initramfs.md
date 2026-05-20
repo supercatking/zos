@@ -50,16 +50,16 @@ Commands:
 
 The command parser is intentionally tiny, but it now tokenizes `argc`/`argv`
 and dispatches through a builtin command table. Commands are still shell
-builtins when they need shell-local state. `help`, `echo`, `cat`, and `ls` are
-also available as embedded `/bin/*` user programs and run through the
-`fork`/`exec`/`wait` path.
+builtins when they need shell-local state. `help`, `echo`, `cat`, `ls`,
+`forktest`, and `vmtest` are also available as embedded `/bin/*` user programs
+and run through the `fork`/`exec`/`wait` path.
 
 ## Smoke Test Input
 
 The QEMU smoke script can feed serial input:
 
 ```sh
-QEMU_SMOKE_INPUT='help\necho hello\ntouch a\nls\necho hello > a\ncat a\ncat /README\npwd\nclear\nenv\nwhich echo\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
-QEMU_SMOKE_EXPECT='commands:;hello;a;ZOS README;/;PATH=/bin;echo;history;lines=1 words=1 bytes=6;user: halted cleanly' \
+QEMU_SMOKE_INPUT='help\nwhich echo\n/bin/echo hello\necho hello\n/bin/forktest\n/bin/vmtest\ntouch a\nls /bin\nls\necho hello > a\ncat a\ncat /README\nps\npwd\nclear\nenv\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
+QEMU_SMOKE_EXPECT='commands:;echo;hello;forktest: child saw 0;forktest: wait reaped child;vmtest: isolation ok;forktest;vmtest;a;ZOS README;pid: 1 ppid: 0 state: running name: sh;PATH=/bin;history;lines=1 words=1 bytes=6;user: halted cleanly' \
 make test
 ```

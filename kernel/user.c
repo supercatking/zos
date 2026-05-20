@@ -18,6 +18,10 @@ extern char _binary_build_user_bin_ls_bin_start[];
 extern char _binary_build_user_bin_ls_bin_end[];
 extern char _binary_build_user_bin_help_bin_start[];
 extern char _binary_build_user_bin_help_bin_end[];
+extern char _binary_build_user_bin_forktest_bin_start[];
+extern char _binary_build_user_bin_forktest_bin_end[];
+extern char _binary_build_user_bin_vmtest_bin_start[];
+extern char _binary_build_user_bin_vmtest_bin_end[];
 
 static size_t current_text_pages;
 static char current_program[32];
@@ -43,6 +47,19 @@ static struct proc procs[8];
 static struct proc *current_proc;
 static int current_pid = 1;
 static int next_pid = 2;
+
+static const char *proc_state_name(enum proc_state state)
+{
+    switch (state) {
+    case PROC_RUNNING:
+        return "running";
+    case PROC_ZOMBIE:
+        return "zombie";
+    case PROC_UNUSED:
+    default:
+        return "unused";
+    }
+}
 
 static int streq(const char *a, const char *b)
 {
@@ -71,6 +88,41 @@ static void copy_string(char *dst, const char *src, size_t max)
     dst[i] = '\0';
 }
 
+static uintptr_t append_char(char *buf, uintptr_t out, uintptr_t len, char ch)
+{
+    if (out < len) {
+        buf[out++] = ch;
+    }
+    return out;
+}
+
+static uintptr_t append_str(char *buf, uintptr_t out, uintptr_t len, const char *s)
+{
+    for (uintptr_t i = 0; s[i] != '\0'; i++) {
+        out = append_char(buf, out, len, s[i]);
+    }
+    return out;
+}
+
+static uintptr_t append_uint(char *buf, uintptr_t out, uintptr_t len, uintptr_t value)
+{
+    char tmp[10];
+    uintptr_t n = 0;
+
+    if (value == 0) {
+        return append_char(buf, out, len, '0');
+    }
+
+    while (value != 0 && n < sizeof(tmp)) {
+        tmp[n++] = (char)('0' + value % 10u);
+        value /= 10u;
+    }
+    while (n != 0) {
+        out = append_char(buf, out, len, tmp[--n]);
+    }
+    return out;
+}
+
 static void add_program(const char *path, const char *start, const char *end)
 {
     if (initramfs_add_static_file(path, start, (uintptr_t)(end - start)) != 0) {
@@ -90,6 +142,10 @@ void user_register_programs(void)
                 _binary_build_user_bin_ls_bin_end);
     add_program("/bin/help", _binary_build_user_bin_help_bin_start,
                 _binary_build_user_bin_help_bin_end);
+    add_program("/bin/forktest", _binary_build_user_bin_forktest_bin_start,
+                _binary_build_user_bin_forktest_bin_end);
+    add_program("/bin/vmtest", _binary_build_user_bin_vmtest_bin_start,
+                _binary_build_user_bin_vmtest_bin_end);
 }
 
 static void copy_bytes(void *dst, const void *src, size_t len)
@@ -216,6 +272,27 @@ int user_current_is_shell(void)
 int user_getpid(void)
 {
     return current_pid;
+}
+
+uintptr_t user_procinfo(char *buf, uintptr_t len)
+{
+    uintptr_t out = 0;
+
+    for (size_t i = 0; i < sizeof(procs) / sizeof(procs[0]); i++) {
+        if (procs[i].state == PROC_UNUSED) {
+            continue;
+        }
+
+        out = append_str(buf, out, len, "pid: ");
+        out = append_uint(buf, out, len, (uintptr_t)procs[i].pid);
+        out = append_str(buf, out, len, " ppid: ");
+        out = append_uint(buf, out, len, (uintptr_t)procs[i].ppid);
+        out = append_str(buf, out, len, " state: ");
+        out = append_str(buf, out, len, proc_state_name(procs[i].state));
+        out = append_str(buf, out, len, procs[i].pid == 1 ? " name: sh\n" : " name: child\n");
+    }
+
+    return out;
 }
 
 int user_fork(struct trap_frame *tf)

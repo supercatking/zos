@@ -20,6 +20,7 @@ typedef unsigned int size_t;
 #define SYS_FORK 17u
 #define SYS_WAIT 18u
 #define SYS_GETPID 19u
+#define SYS_PROCINFO 20u
 
 #define MAX_LINE 96
 #define MAX_ARGS 8
@@ -124,9 +125,9 @@ static long sys_wait(void)
     return syscall3(SYS_WAIT, 0, 0, 0);
 }
 
-static long sys_getpid(void)
+static long sys_procinfo(char *buf, size_t len)
 {
-    return syscall3(SYS_GETPID, 0, 0, 0);
+    return syscall3(SYS_PROCINFO, (uintptr_t)buf, len, 0);
 }
 
 static void sys_exit(int status)
@@ -369,10 +370,12 @@ static int cmd_ps(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
-    puts("pid: ");
-    put_uint((uintptr_t)sys_getpid());
-    puts(" name: sh state: running\n");
-    puts("pid: 2 name: child state: waitable\n");
+    char buf[160];
+    long n = sys_procinfo(buf, sizeof(buf));
+
+    if (n > 0) {
+        (void)sys_write(1, buf, (size_t)n);
+    }
     return 0;
 }
 

@@ -13,6 +13,7 @@ typedef unsigned int size_t;
 #define SYS_FORK 17u
 #define SYS_WAIT 18u
 #define SYS_GETPID 19u
+#define SYS_PROCINFO 20u
 
 static U_UNUSED long syscall3(uintptr_t number, uintptr_t a0, uintptr_t a1, uintptr_t a2)
 {
@@ -84,4 +85,19 @@ static U_UNUSED void u_close(int fd)
 static U_UNUSED long u_list(const char *path, char *buf, size_t len)
 {
     return syscall3(SYS_LIST, (uintptr_t)buf, len, (uintptr_t)path);
+}
+
+static U_UNUSED long u_fork(void)
+{
+    return syscall3(SYS_FORK, 0, 0, 0);
+}
+
+static U_UNUSED long u_wait(void)
+{
+    return syscall3(SYS_WAIT, 0, 0, 0);
+}
+
+static U_UNUSED long u_getpid(void)
+{
+    return syscall3(SYS_GETPID, 0, 0, 0);
 }

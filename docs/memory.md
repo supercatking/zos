@@ -38,3 +38,19 @@ Mapped regions:
 - RAM `0x80000000..0x88000000`
 
 `vm_enable_kernel_paging()` writes Sv32 `satp` and executes `sfence.vma`.
+
+## User Address Spaces
+
+M8 gives each process its own Sv32 root page table. The kernel RAM and UART
+identity mappings are copied from the kernel page table, while user text and
+stack mappings point at pages owned by the process.
+
+User layout remains fixed so simple raw binaries can keep using the same linker
+script:
+
+- user text base: `0x00400000`
+- user stack page: `0x00410000..0x00411000`
+
+`fork` copies the parent user pages into child-owned physical pages. `exec`
+replaces only the calling process text image. Page freeing is still deferred;
+M9 should add process teardown and page-table reclamation.

@@ -76,3 +76,26 @@ Exit criteria: QEMU boots into a user-facing shell that can run simple commands.
 
 Exit criteria: `make regression` drives the user shell through `help`, `ls`,
 `cat`, `ps`, `sleep`, `kill`, and `reboot`.
+
+## M7: User Programs and Process Syscalls
+
+- Build multiple embedded `/bin/*` user programs.
+- Add `exec`, `fork`, `wait`, and `getpid` syscall coverage.
+- Route shell external commands through `fork`/`exec`/`wait`.
+- Keep shell-local commands as builtins.
+
+Exit criteria: QEMU regression runs `/bin/echo`, shell `echo`, `cat`, `ls /bin`,
+and `ps`, then returns to the same shell.
+
+## M8: Real Process Foundations
+
+- Move user traps from the user stack onto a kernel trap stack.
+- Give each process its own Sv32 page table, user text pages, and user stack.
+- Add process-table-backed `procinfo` and user regression programs for
+  `fork`/`wait` and address-space isolation.
+
+Exit criteria: `make regression` runs `/bin/forktest` and `/bin/vmtest`, proves
+parent/child memory isolation, and still completes all shell workflows.
+
+Current limitation: M8 still executes child work synchronously. M9 should add
+preemptive/runnable process scheduling and blocking `wait`.
