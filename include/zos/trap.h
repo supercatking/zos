@@ -44,5 +44,6 @@ struct trap_frame {
 void trap_init(void);
 void trap_handler(struct trap_frame *tf);
 void trap_entry(void);
+uintptr_t trap_kernel_stack_top(void);
 
 #endif

@@ -5,11 +5,22 @@
 #include <zos/timer.h>
 #include <zos/trap.h>
 
+#define TRAP_KERNEL_STACK_SIZE 4096u
+
+static uint8_t trap_kernel_stack[TRAP_KERNEL_STACK_SIZE]
+    __attribute__((aligned(16)));
+
 void timer_interrupt(struct trap_frame *tf) __attribute__((weak));
+
+uintptr_t trap_kernel_stack_top(void)
+{
+    return (uintptr_t)&trap_kernel_stack[TRAP_KERNEL_STACK_SIZE];
+}
 
 void trap_init(void)
 {
     w_stvec((uintptr_t)trap_entry | STVEC_MODE_DIRECT);
+    w_sscratch(0);
 }
 
 void trap_handler(struct trap_frame *tf)

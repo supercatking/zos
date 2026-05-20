@@ -285,6 +285,7 @@ void user_enter(uintptr_t entry, uintptr_t stack_top)
     status |= SSTATUS_SPIE | SSTATUS_SUM;
     w_sstatus(status);
     w_sepc(entry);
+    w_sscratch(trap_kernel_stack_top());
 
     console_puts("user: entering U-mode\n");
     __asm__ volatile("li a0, 0\n"

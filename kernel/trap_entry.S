@@ -40,11 +40,18 @@
     .equ TF_SIZE, 144
 
 trap_entry:
+    csrrw sp, sscratch, sp
+    bnez sp, 1f
+    csrrw sp, sscratch, sp
+1:
     addi sp, sp, -TF_SIZE
 
     sw ra, TF_RA(sp)
     sw t0, TF_T0(sp)
+    csrr t0, sscratch
+    bnez t0, 2f
     addi t0, sp, TF_SIZE
+2:
     sw t0, TF_SP(sp)
     sw gp, TF_GP(sp)
     sw tp, TF_TP(sp)
@@ -91,6 +98,14 @@ trap_entry:
     csrw sepc, t0
     lw t0, TF_SSTATUS(sp)
     csrw sstatus, t0
+    andi t1, t0, 0x100
+    bnez t1, 3f
+    addi t2, sp, TF_SIZE
+    csrw sscratch, t2
+    j 4f
+3:
+    csrw sscratch, zero
+4:
 
     lw ra, TF_RA(sp)
     lw gp, TF_GP(sp)
