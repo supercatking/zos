@@ -9,6 +9,7 @@ typedef unsigned int size_t;
 #define SYS_OPEN 4u
 #define SYS_CLOSE 5u
 #define SYS_LIST 9u
+#define SYS_EXEC 16u
 
 static U_UNUSED long syscall3(uintptr_t number, uintptr_t a0, uintptr_t a1, uintptr_t a2)
 {

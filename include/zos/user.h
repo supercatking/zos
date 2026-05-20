@@ -6,9 +6,15 @@
 #define USER_TEXT_BASE 0x00400000u
 #define USER_STACK_BASE 0x00410000u
 #define USER_STACK_TOP  0x00411000u
+#define USER_ARG_BASE   (USER_STACK_TOP - 512u)
+#define USER_TEXT_PAGES ((USER_STACK_BASE - USER_TEXT_BASE) / 4096u)
+
+struct trap_frame;
 
 void user_init(void);
 void user_register_programs(void);
+int user_exec(const char *path, const char *arg, struct trap_frame *tf);
+int user_current_is_shell(void);
 void user_enter(uintptr_t entry, uintptr_t stack_top) __attribute__((noreturn));
 
 #endif

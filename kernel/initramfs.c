@@ -321,6 +321,20 @@ uintptr_t initramfs_list(const char *path, char *buf, uintptr_t len)
     return out;
 }
 
+const char *initramfs_data(const char *path, uintptr_t *len)
+{
+    struct initramfs_file *file = find_file(path);
+
+    if (file == 0 || file->is_dir) {
+        return 0;
+    }
+
+    if (len != 0) {
+        *len = file->len;
+    }
+    return file->static_data != 0 ? file->static_data : file->data;
+}
+
 int initramfs_unlink(const char *path)
 {
     struct initramfs_file *file = find_file(path);

@@ -4,6 +4,7 @@
 #include <zos/syscall.h>
 #include <zos/timer.h>
 #include <zos/types.h>
+#include <zos/user.h>
 
 #define TIMEBASE_HZ 10000000ull
 #define SLEEP_TICK_HZ 100ull
@@ -57,8 +58,19 @@ static uintptr_t sys_read(uintptr_t fd, char *buf, uintptr_t len)
     return initramfs_read((int)fd, buf, len);
 }
 
-static void sys_exit(uintptr_t status)
+static void sys_exit(uintptr_t status, struct trap_frame *tf)
 {
+    if (!user_current_is_shell()) {
+        (void)status;
+        if (user_exec("/bin/sh", "", tf) != 0) {
+            console_puts("user: restart shell failed\n");
+            for (;;) {
+                __asm__ volatile("wfi");
+            }
+        }
+        return;
+    }
+
     console_puts("user: exit status ");
     console_put_hex(status);
     console_puts("\n");
@@ -144,7 +156,7 @@ void syscall_handle(struct trap_frame *tf)
         tf->a0 = sys_write(tf->a0, (const char *)tf->a1, tf->a2);
         break;
     case SYS_EXIT:
-        sys_exit(tf->a0);
+        sys_exit(tf->a0, tf);
         break;
     case SYS_READ:
         tf->a0 = sys_read(tf->a0, (char *)tf->a1, tf->a2);
@@ -185,6 +197,11 @@ void syscall_handle(struct trap_frame *tf)
         break;
     case SYS_MEMINFO:
         tf->a0 = sys_meminfo((char *)tf->a0, tf->a1);
+        break;
+    case SYS_EXEC:
+        if (user_exec((const char *)tf->a0, (const char *)tf->a1, tf) != 0) {
+            tf->a0 = (uintptr_t)-1;
+        }
         break;
     default:
         console_puts("syscall: unknown ");

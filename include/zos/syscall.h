@@ -18,6 +18,7 @@
 #define SYS_RENAME 13u
 #define SYS_UPTIME 14u
 #define SYS_MEMINFO 15u
+#define SYS_EXEC 16u
 
 void syscall_handle(struct trap_frame *tf);
 

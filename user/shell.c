@@ -16,6 +16,7 @@ typedef unsigned int size_t;
 #define SYS_RENAME 13u
 #define SYS_UPTIME 14u
 #define SYS_MEMINFO 15u
+#define SYS_EXEC 16u
 
 #define MAX_LINE 96
 #define MAX_ARGS 8
@@ -105,6 +106,11 @@ static long sys_kill(uintptr_t pid)
     return syscall3(SYS_KILL, pid, 0, 0);
 }
 
+static long sys_exec(const char *path, const char *arg)
+{
+    return syscall3(SYS_EXEC, (uintptr_t)path, (uintptr_t)arg, 0);
+}
+
 static void sys_exit(int status)
 {
     (void)syscall3(SYS_EXIT, (uintptr_t)status, 0, 0);
@@ -171,6 +177,28 @@ static void copy_string(char *dst, const char *src, size_t max_len)
         i++;
     }
     dst[i] = '\0';
+}
+
+static int starts_with(const char *s, const char *prefix)
+{
+    while (*prefix != '\0') {
+        if (*s != *prefix) {
+            return 0;
+        }
+        s++;
+        prefix++;
+    }
+    return 1;
+}
+
+static void append_string(char *dst, size_t max_len, const char *src)
+{
+    size_t out = strlen(dst);
+
+    while (out + 1u < max_len && *src != '\0') {
+        dst[out++] = *src++;
+    }
+    dst[out] = '\0';
 }
 
 static void puts(const char *s)
@@ -644,6 +672,64 @@ static int cmd_false(int argc, char **argv)
     return 1;
 }
 
+static int has_redirect(int argc, char **argv)
+{
+    for (int i = 1; i < argc; i++) {
+        if (streq(argv[i], ">")) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int should_exec_external(int argc, char **argv)
+{
+    if (argc == 0) {
+        return 0;
+    }
+
+    if (starts_with(argv[0], "/bin/")) {
+        return 1;
+    }
+    if (streq(argv[0], "help") || streq(argv[0], "ls") ||
+        streq(argv[0], "cat")) {
+        return 1;
+    }
+    if (streq(argv[0], "echo") && !has_redirect(argc, argv)) {
+        return 1;
+    }
+    return 0;
+}
+
+static int exec_external(int argc, char **argv)
+{
+    char path[32];
+    char arg[96];
+    int first_arg = 1;
+
+    if (starts_with(argv[0], "/bin/")) {
+        copy_string(path, argv[0], sizeof(path));
+    } else {
+        copy_string(path, "/bin/", sizeof(path));
+        append_string(path, sizeof(path), argv[0]);
+    }
+
+    arg[0] = '\0';
+    for (int i = 1; i < argc; i++) {
+        if (!first_arg) {
+            append_string(arg, sizeof(arg), " ");
+        }
+        append_string(arg, sizeof(arg), argv[i]);
+        first_arg = 0;
+    }
+
+    if (sys_exec(path, arg) < 0) {
+        puts("exec: not found\n");
+        return -1;
+    }
+    return 0;
+}
+
 static int cmd_clear(int argc, char **argv)
 {
     (void)argc;
@@ -713,6 +799,11 @@ void _start(void)
         record_history(line);
         parse_line(line, &argc, argv);
         if (argc == 0) {
+            continue;
+        }
+
+        if (should_exec_external(argc, argv)) {
+            (void)exec_external(argc, argv);
             continue;
         }
 
