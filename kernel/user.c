@@ -6,8 +6,8 @@
 #include <zos/user.h>
 #include <zos/vm.h>
 
-extern char __user_init_start[];
-extern char __user_init_end[];
+extern char _binary_build_user_shell_bin_start[];
+extern char _binary_build_user_shell_bin_end[];
 
 static void copy_bytes(void *dst, const void *src, size_t len)
 {
@@ -30,7 +30,8 @@ static void zero_page(void *page)
 
 void user_init(void)
 {
-    size_t image_size = (size_t)(__user_init_end - __user_init_start);
+    size_t image_size = (size_t)(_binary_build_user_shell_bin_end -
+                                 _binary_build_user_shell_bin_start);
     void *text_page = pmm_alloc_page();
     void *stack_page = pmm_alloc_page();
 
@@ -44,7 +45,7 @@ void user_init(void)
 
     zero_page(text_page);
     zero_page(stack_page);
-    copy_bytes(text_page, __user_init_start, image_size);
+    copy_bytes(text_page, _binary_build_user_shell_bin_start, image_size);
 
     if (vm_map(vm_kernel_table(), USER_TEXT_BASE, (uintptr_t)text_page,
                PAGE_SIZE, PTE_R | PTE_W | PTE_X | PTE_U) != 0) {
