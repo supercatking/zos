@@ -85,6 +85,27 @@ pagetable_t vm_kernel_table(void)
     return kernel_root;
 }
 
+pagetable_t vm_create_user_table(void)
+{
+    pte_t *root = (pte_t *)vm_alloc_page_table();
+
+    if (root == 0 || kernel_root == 0) {
+        return 0;
+    }
+
+    for (size_t i = 0; i < VM_SV32_ENTRIES; i++) {
+        root[i] = kernel_root[i];
+    }
+
+    return root;
+}
+
+void vm_switch(pagetable_t root)
+{
+    csr_write(satp, sv32_satp((uintptr_t)root));
+    __asm__ volatile("sfence.vma" ::: "memory");
+}
+
 void vm_init(void)
 {
     if (kernel_root != 0) {
@@ -124,6 +145,6 @@ void vm_enable_kernel_paging(void)
     }
 
     satp = sv32_satp((uintptr_t)kernel_root);
-    csr_write(satp, satp);
-    __asm__ volatile("sfence.vma" ::: "memory");
+    (void)satp;
+    vm_switch(kernel_root);
 }

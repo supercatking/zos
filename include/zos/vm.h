@@ -74,6 +74,8 @@ static inline uint32_t sv32_satp(uintptr_t root_pa)
 void vm_init(void);
 int vm_map(pagetable_t root, uintptr_t va, uintptr_t pa, size_t size, uint32_t flags);
 pagetable_t vm_kernel_table(void);
+pagetable_t vm_create_user_table(void);
+void vm_switch(pagetable_t root);
 void vm_enable_kernel_paging(void);
 
 #endif
