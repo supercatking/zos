@@ -23,15 +23,14 @@ static uint64_t read_time(void)
 
 static uintptr_t sys_write(uintptr_t fd, const char *buf, uintptr_t len)
 {
-    if (fd != 1 && fd != 2) {
-        return (uintptr_t)-1;
+    if (fd == 1 || fd == 2) {
+        for (uintptr_t i = 0; i < len; i++) {
+            console_putchar(buf[i]);
+        }
+        return len;
     }
 
-    for (uintptr_t i = 0; i < len; i++) {
-        console_putchar(buf[i]);
-    }
-
-    return len;
+    return initramfs_write((int)fd, buf, len);
 }
 
 static uintptr_t sys_read(uintptr_t fd, char *buf, uintptr_t len)
@@ -115,6 +114,12 @@ void syscall_handle(struct trap_frame *tf)
         break;
     case SYS_KILL:
         tf->a0 = sys_kill(tf->a0);
+        break;
+    case SYS_CREATE:
+        tf->a0 = (uintptr_t)initramfs_create((const char *)tf->a0);
+        break;
+    case SYS_LIST:
+        tf->a0 = initramfs_list((char *)tf->a0, tf->a1);
         break;
     default:
         console_puts("syscall: unknown ");

@@ -8,6 +8,8 @@ typedef unsigned int size_t;
 #define SYS_CLOSE 5u
 #define SYS_SLEEP 6u
 #define SYS_KILL 7u
+#define SYS_CREATE 8u
+#define SYS_LIST 9u
 
 #define MAX_LINE 96
 #define MAX_ARGS 8
@@ -44,6 +46,16 @@ static long sys_open(const char *path)
 static long sys_close(int fd)
 {
     return syscall3(SYS_CLOSE, (uintptr_t)fd, 0, 0);
+}
+
+static long sys_create(const char *path)
+{
+    return syscall3(SYS_CREATE, (uintptr_t)path, 0, 0);
+}
+
+static long sys_list(char *buf, size_t len)
+{
+    return syscall3(SYS_LIST, (uintptr_t)buf, len, 0);
 }
 
 static long sys_sleep(uintptr_t ticks)
@@ -134,7 +146,11 @@ static int cmd_ls(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
-    puts("/README\n/proc/status\n");
+    char buf[128];
+    long n = sys_list(buf, sizeof(buf));
+    if (n > 0) {
+        (void)sys_write(1, buf, (size_t)n);
+    }
     return 0;
 }
 
@@ -192,6 +208,19 @@ static int cmd_pwd(int argc, char **argv)
     return 0;
 }
 
+static int cmd_touch(int argc, char **argv)
+{
+    if (argc < 2) {
+        puts("touch: missing file\n");
+        return -1;
+    }
+    if (sys_create(argv[1]) < 0) {
+        puts("touch: failed\n");
+        return -1;
+    }
+    return 0;
+}
+
 static int cmd_clear(int argc, char **argv)
 {
     (void)argc;
@@ -222,6 +251,7 @@ static const struct command commands[] = {
     {"sleep", cmd_sleep},
     {"kill", cmd_kill},
     {"pwd", cmd_pwd},
+    {"touch", cmd_touch},
     {"clear", cmd_clear},
     {"reboot", cmd_reboot},
 };
