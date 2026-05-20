@@ -21,6 +21,7 @@ Commands:
 - `echo`
 - `ls`
 - `cat`
+- `touch`
 - `ps`
 - `sleep`
 - `kill`
@@ -34,7 +35,7 @@ character of the input line.
 The QEMU smoke script can feed serial input:
 
 ```sh
-QEMU_SMOKE_INPUT='help\nls\ncat\nps\nsleep\nkill\nreboot\n' \
-QEMU_SMOKE_EXPECT='commands: help;ZOS README;pid  name;sleep done;kill: pid 1 noted;user: halted cleanly' \
+QEMU_SMOKE_INPUT='help\necho hello\ntouch a\nls\necho hello > a\ncat a\ncat /README\npwd\nclear\nreboot\n' \
+QEMU_SMOKE_EXPECT='commands:;hello;a;ZOS README;/;user: halted cleanly' \
 make test
 ```

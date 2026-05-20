@@ -132,6 +132,43 @@ static int cmd_help(int argc, char **argv)
 
 static int cmd_echo(int argc, char **argv)
 {
+    int redirect = -1;
+
+    for (int i = 1; i < argc; i++) {
+        if (streq(argv[i], ">")) {
+            redirect = i;
+            break;
+        }
+    }
+
+    if (redirect >= 0) {
+        if (redirect + 1 >= argc) {
+            puts("echo: missing redirect target\n");
+            return -1;
+        }
+
+        if (sys_create(argv[redirect + 1]) < 0) {
+            puts("echo: create failed\n");
+            return -1;
+        }
+
+        long fd = sys_open(argv[redirect + 1]);
+        if (fd < 0) {
+            puts("echo: open failed\n");
+            return -1;
+        }
+
+        for (int i = 1; i < redirect; i++) {
+            if (i > 1) {
+                (void)sys_write((int)fd, " ", 1);
+            }
+            (void)sys_write((int)fd, argv[i], strlen(argv[i]));
+        }
+        (void)sys_write((int)fd, "\n", 1);
+        (void)sys_close((int)fd);
+        return 0;
+    }
+
     for (int i = 1; i < argc; i++) {
         if (i > 1) {
             puts(" ");

@@ -92,8 +92,8 @@ test: build
 	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
 
 regression: build
-	QEMU_SMOKE_INPUT='help\nls\ncat\nps\nsleep\nkill\nreboot\n' \
-	QEMU_SMOKE_EXPECT='commands: help;ZOS README;pid  name;sleep done;kill: pid 1 noted;user: halted cleanly' \
+	QEMU_SMOKE_INPUT='help\necho hello\ntouch a\nls\necho hello > a\ncat a\ncat /README\npwd\nclear\nreboot\n' \
+	QEMU_SMOKE_EXPECT='commands:;hello;a;ZOS README;/;user: halted cleanly' \
 	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
 
 clean:
