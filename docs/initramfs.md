@@ -10,6 +10,8 @@ The first initramfs contains:
 - `/proc/status`
 
 The kernel exposes files through `open`, `read`, and `close` syscalls.
+Writable ramfs files can be created, renamed, removed, listed, read, and
+overwritten while the kernel is running. They are intentionally volatile.
 
 ## Shell
 
@@ -22,20 +24,40 @@ Commands:
 - `ls`
 - `cat`
 - `touch`
+- `rm`
+- `mkdir`
+- `rmdir`
+- `stat`
+- `cp`
+- `mv`
 - `ps`
 - `sleep`
 - `kill`
+- `uptime`
+- `mem`
+- `uname`
+- `pwd`
+- `cd`
+- `env`
+- `which`
+- `history`
+- `grep`
+- `wc`
+- `true`
+- `false`
+- `clear`
 - `reboot`
 
-The command parser is intentionally tiny and currently dispatches by the first
-character of the input line.
+The command parser is intentionally tiny, but it now tokenizes `argc`/`argv`
+and dispatches through a builtin command table. Commands are still shell
+builtins rather than separate ELF programs.
 
 ## Smoke Test Input
 
 The QEMU smoke script can feed serial input:
 
 ```sh
-QEMU_SMOKE_INPUT='help\necho hello\ntouch a\nls\necho hello > a\ncat a\ncat /README\npwd\nclear\nreboot\n' \
-QEMU_SMOKE_EXPECT='commands:;hello;a;ZOS README;/;user: halted cleanly' \
+QEMU_SMOKE_INPUT='help\necho hello\ntouch a\nls\necho hello > a\ncat a\ncat /README\npwd\nclear\nenv\nwhich echo\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
+QEMU_SMOKE_EXPECT='commands:;hello;a;ZOS README;/;PATH=/bin;echo;history;lines=1 words=1 bytes=6;user: halted cleanly' \
 make test
 ```

@@ -92,8 +92,8 @@ test: build
 	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
 
 regression: build
-	QEMU_SMOKE_INPUT='help\necho hello\ntouch a\nls\necho hello > a\ncat a\ncat /README\npwd\nclear\nreboot\n' \
-	QEMU_SMOKE_EXPECT='commands:;hello;a;ZOS README;/;user: halted cleanly' \
+	QEMU_SMOKE_INPUT='help\necho hello\ntouch a\nls\necho hello > a\ncat a\ncat /README\npwd\nclear\nenv\nwhich echo\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
+	QEMU_SMOKE_EXPECT='commands:;hello;a;ZOS README;/;PATH=/bin;echo;history;lines=1 words=1 bytes=6;user: halted cleanly' \
 	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
 
 clean:

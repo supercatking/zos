@@ -24,12 +24,18 @@ The trap handler advances `sepc` by 4 before returning from handled syscalls.
 | 7 | `kill` | `a0=pid` | `0` or `-1` |
 | 8 | `create` | `a0=path` | `0` or `-1` |
 | 9 | `list` | `a0=buf`, `a1=len` | bytes written |
+| 10 | `unlink` | `a0=path` | `0` or `-1` |
+| 11 | `stat` | `a0=path`, `a1=buf`, `a2=len` | bytes written or `-1` |
+| 12 | `mkdir` | `a0=path` | `0` or `-1` |
+| 13 | `rename` | `a0=old_path`, `a1=new_path` | `0` or `-1` |
+| 14 | `uptime` | none | seconds since kernel timer init |
+| 15 | `meminfo` | `a0=buf`, `a1=len` | bytes written or `-1` |
 
-Only fd `1` and `2` are accepted by `write` in M4.
-Fd `0` reads from the serial terminal. File descriptors from `3` upward refer
-to initramfs files.
+Fd `0` reads from the serial terminal. Fd `1` and `2` write to the serial
+terminal. File descriptors from `3` upward refer to ramfs files and support
+`read`, `write`, and `close`.
 
 ## Current User Program
 
-The first user shell is linked into the kernel image, copied into a user page,
-mapped with `PTE_U`, and entered with `sret`.
+The user shell is linked into the kernel image, copied into one or more user
+text pages, mapped with `PTE_U`, and entered with `sret`.

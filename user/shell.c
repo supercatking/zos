@@ -19,6 +19,7 @@ typedef unsigned int size_t;
 
 #define MAX_LINE 96
 #define MAX_ARGS 8
+#define HISTORY_MAX 8
 
 static long syscall3(uintptr_t number, uintptr_t a0, uintptr_t a1, uintptr_t a2)
 {
@@ -132,6 +133,46 @@ static int streq(const char *a, const char *b)
     return *a == *b;
 }
 
+static int is_space(char ch)
+{
+    return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';
+}
+
+static int contains(const char *s, const char *needle)
+{
+    if (*needle == '\0') {
+        return 1;
+    }
+
+    for (; *s != '\0'; s++) {
+        const char *a = s;
+        const char *b = needle;
+        while (*a != '\0' && *b != '\0' && *a == *b) {
+            a++;
+            b++;
+        }
+        if (*b == '\0') {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void copy_string(char *dst, const char *src, size_t max_len)
+{
+    size_t i = 0;
+
+    if (max_len == 0) {
+        return;
+    }
+
+    while (i + 1u < max_len && src[i] != '\0') {
+        dst[i] = src[i];
+        i++;
+    }
+    dst[i] = '\0';
+}
+
 static void puts(const char *s)
 {
     (void)sys_write(1, s, strlen(s));
@@ -178,11 +219,21 @@ static void parse_line(char *line, int *argc, char **argv)
     }
 }
 
+static char history[HISTORY_MAX][MAX_LINE];
+static size_t history_count;
+
+static void record_history(const char *line)
+{
+    size_t slot = history_count % HISTORY_MAX;
+    copy_string(history[slot], line, MAX_LINE);
+    history_count++;
+}
+
 static int cmd_help(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
-    puts("commands: help echo ls cat ps sleep kill pwd clear reboot\n");
+    puts("commands: help echo ls cat touch rm mkdir rmdir stat cp mv ps sleep kill uptime mem uname pwd cd env which history grep wc true false clear reboot\n");
     return 0;
 }
 
@@ -299,6 +350,15 @@ static int cmd_pwd(int argc, char **argv)
     (void)argv;
     puts("/\n");
     return 0;
+}
+
+static int cmd_cd(int argc, char **argv)
+{
+    if (argc < 2 || streq(argv[1], "/")) {
+        return 0;
+    }
+    puts("cd: only / is supported\n");
+    return -1;
 }
 
 static int cmd_touch(int argc, char **argv)
@@ -441,6 +501,150 @@ static int cmd_uname(int argc, char **argv)
     return 0;
 }
 
+static int cmd_env(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    puts("PATH=/bin\nSHELL=/bin/sh\nUSER=root\nPWD=/\n");
+    return 0;
+}
+
+static int cmd_which(int argc, char **argv)
+{
+    static const char *names[] = {
+        "help", "echo", "ls", "cat", "touch", "rm", "mkdir", "rmdir",
+        "stat", "cp", "mv", "ps", "sleep", "kill", "uptime", "mem",
+        "uname", "pwd", "cd", "env", "which", "history", "grep", "wc",
+        "true", "false", "clear", "reboot",
+    };
+
+    if (argc < 2) {
+        puts("which: missing command\n");
+        return -1;
+    }
+
+    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+        if (streq(argv[1], names[i])) {
+            puts(argv[1]);
+            puts("\n");
+            return 0;
+        }
+    }
+
+    puts("which: not found\n");
+    return -1;
+}
+
+static int cmd_history(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    size_t start = history_count > HISTORY_MAX ? history_count - HISTORY_MAX : 0;
+
+    for (size_t i = start; i < history_count; i++) {
+        put_uint((uintptr_t)(i + 1u));
+        puts(" ");
+        puts(history[i % HISTORY_MAX]);
+        puts("\n");
+    }
+    return 0;
+}
+
+static int cmd_grep(int argc, char **argv)
+{
+    char buf[128];
+
+    if (argc < 3) {
+        puts("grep: usage grep pattern file\n");
+        return -1;
+    }
+
+    long fd = sys_open(argv[2]);
+    if (fd < 0) {
+        puts("grep: not found\n");
+        return -1;
+    }
+
+    for (;;) {
+        long n = sys_read((int)fd, buf, sizeof(buf) - 1u);
+        if (n <= 0) {
+            break;
+        }
+        buf[n] = '\0';
+        if (contains(buf, argv[1])) {
+            (void)sys_write(1, buf, (size_t)n);
+            if (buf[n - 1] != '\n') {
+                puts("\n");
+            }
+        }
+    }
+    (void)sys_close((int)fd);
+    return 0;
+}
+
+static int cmd_wc(int argc, char **argv)
+{
+    char buf[128];
+    uintptr_t bytes = 0;
+    uintptr_t lines = 0;
+    uintptr_t words = 0;
+    int in_word = 0;
+
+    if (argc < 2) {
+        puts("wc: missing file\n");
+        return -1;
+    }
+
+    long fd = sys_open(argv[1]);
+    if (fd < 0) {
+        puts("wc: not found\n");
+        return -1;
+    }
+
+    for (;;) {
+        long n = sys_read((int)fd, buf, sizeof(buf));
+        if (n <= 0) {
+            break;
+        }
+        bytes += (uintptr_t)n;
+        for (long i = 0; i < n; i++) {
+            if (buf[i] == '\n') {
+                lines++;
+            }
+            if (is_space(buf[i])) {
+                in_word = 0;
+            } else if (!in_word) {
+                words++;
+                in_word = 1;
+            }
+        }
+    }
+    (void)sys_close((int)fd);
+
+    puts("lines=");
+    put_uint(lines);
+    puts(" words=");
+    put_uint(words);
+    puts(" bytes=");
+    put_uint(bytes);
+    puts("\n");
+    return 0;
+}
+
+static int cmd_true(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    return 0;
+}
+
+static int cmd_false(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    return 1;
+}
+
 static int cmd_clear(int argc, char **argv)
 {
     (void)argc;
@@ -471,6 +675,7 @@ static const struct command commands[] = {
     {"sleep", cmd_sleep},
     {"kill", cmd_kill},
     {"pwd", cmd_pwd},
+    {"cd", cmd_cd},
     {"touch", cmd_touch},
     {"rm", cmd_rm},
     {"mkdir", cmd_mkdir},
@@ -481,6 +686,13 @@ static const struct command commands[] = {
     {"uptime", cmd_uptime},
     {"mem", cmd_mem},
     {"uname", cmd_uname},
+    {"env", cmd_env},
+    {"which", cmd_which},
+    {"history", cmd_history},
+    {"grep", cmd_grep},
+    {"wc", cmd_wc},
+    {"true", cmd_true},
+    {"false", cmd_false},
     {"clear", cmd_clear},
     {"reboot", cmd_reboot},
 };
@@ -499,6 +711,7 @@ void _start(void)
             continue;
         }
         line[n] = '\0';
+        record_history(line);
         parse_line(line, &argc, argv);
         if (argc == 0) {
             continue;
