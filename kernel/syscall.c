@@ -1,6 +1,8 @@
 #include <zos/console.h>
 #include <zos/initramfs.h>
+#include <zos/pmm.h>
 #include <zos/syscall.h>
+#include <zos/timer.h>
 #include <zos/types.h>
 
 #define TIMEBASE_HZ 10000000ull
@@ -87,6 +89,50 @@ static uintptr_t sys_kill(uintptr_t pid)
     return (uintptr_t)-1;
 }
 
+static uintptr_t write_uint(char *buf, uintptr_t out, uintptr_t len, uintptr_t value)
+{
+    char tmp[10];
+    uintptr_t n = 0;
+
+    if (value == 0) {
+        if (out < len) {
+            buf[out++] = '0';
+        }
+        return out;
+    }
+
+    while (value != 0 && n < sizeof(tmp)) {
+        tmp[n++] = (char)('0' + (value % 10u));
+        value /= 10u;
+    }
+    while (n != 0 && out < len) {
+        buf[out++] = tmp[--n];
+    }
+    return out;
+}
+
+static uintptr_t write_str(char *buf, uintptr_t out, uintptr_t len, const char *s)
+{
+    for (uintptr_t i = 0; s[i] != '\0' && out < len; i++) {
+        buf[out++] = s[i];
+    }
+    return out;
+}
+
+static uintptr_t sys_meminfo(char *buf, uintptr_t len)
+{
+    uintptr_t out = 0;
+
+    out = write_str(buf, out, len, "mem total_pages=");
+    out = write_uint(buf, out, len, pmm_total_pages());
+    out = write_str(buf, out, len, " free_pages=");
+    out = write_uint(buf, out, len, pmm_free_pages());
+    if (out < len) {
+        buf[out++] = '\n';
+    }
+    return out;
+}
+
 void syscall_handle(struct trap_frame *tf)
 {
     uintptr_t number = tf->a7;
@@ -133,6 +179,12 @@ void syscall_handle(struct trap_frame *tf)
     case SYS_RENAME:
         tf->a0 = (uintptr_t)initramfs_rename((const char *)tf->a0,
                                              (const char *)tf->a1);
+        break;
+    case SYS_UPTIME:
+        tf->a0 = ((uintptr_t)timer_ticks()) / TIMER_HZ;
+        break;
+    case SYS_MEMINFO:
+        tf->a0 = sys_meminfo((char *)tf->a0, tf->a1);
         break;
     default:
         console_puts("syscall: unknown ");

@@ -16,6 +16,8 @@
 #define SYS_STAT 11u
 #define SYS_MKDIR 12u
 #define SYS_RENAME 13u
+#define SYS_UPTIME 14u
+#define SYS_MEMINFO 15u
 
 void syscall_handle(struct trap_frame *tf);
 

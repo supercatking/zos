@@ -14,6 +14,8 @@ typedef unsigned int size_t;
 #define SYS_STAT 11u
 #define SYS_MKDIR 12u
 #define SYS_RENAME 13u
+#define SYS_UPTIME 14u
+#define SYS_MEMINFO 15u
 
 #define MAX_LINE 96
 #define MAX_ARGS 8
@@ -82,6 +84,16 @@ static long sys_rename(const char *old_path, const char *new_path)
     return syscall3(SYS_RENAME, (uintptr_t)old_path, (uintptr_t)new_path, 0);
 }
 
+static long sys_uptime(void)
+{
+    return syscall3(SYS_UPTIME, 0, 0, 0);
+}
+
+static long sys_meminfo(char *buf, size_t len)
+{
+    return syscall3(SYS_MEMINFO, (uintptr_t)buf, len, 0);
+}
+
 static long sys_sleep(uintptr_t ticks)
 {
     return syscall3(SYS_SLEEP, ticks, 0, 0);
@@ -123,6 +135,26 @@ static int streq(const char *a, const char *b)
 static void puts(const char *s)
 {
     (void)sys_write(1, s, strlen(s));
+}
+
+static void put_uint(uintptr_t value)
+{
+    char tmp[10];
+    uintptr_t n = 0;
+
+    if (value == 0) {
+        puts("0");
+        return;
+    }
+
+    while (value != 0 && n < sizeof(tmp)) {
+        tmp[n++] = (char)('0' + (value % 10u));
+        value /= 10u;
+    }
+    while (n != 0) {
+        char ch = tmp[--n];
+        (void)sys_write(1, &ch, 1);
+    }
 }
 
 static void parse_line(char *line, int *argc, char **argv)
@@ -241,8 +273,8 @@ static int cmd_ps(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
-    puts("pid  name\n1    sh\n");
-    return 0;
+    char *cat_argv[] = {"cat", "/proc/status"};
+    return cmd_cat(2, cat_argv);
 }
 
 static int cmd_sleep(int argc, char **argv)
@@ -379,6 +411,36 @@ static int cmd_mv(int argc, char **argv)
     return 0;
 }
 
+static int cmd_uptime(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    puts("uptime ");
+    put_uint((uintptr_t)sys_uptime());
+    puts("s\n");
+    return 0;
+}
+
+static int cmd_mem(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    char buf[96];
+    long n = sys_meminfo(buf, sizeof(buf));
+    if (n > 0) {
+        (void)sys_write(1, buf, (size_t)n);
+    }
+    return 0;
+}
+
+static int cmd_uname(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    puts("ZOS riscv32\n");
+    return 0;
+}
+
 static int cmd_clear(int argc, char **argv)
 {
     (void)argc;
@@ -416,6 +478,9 @@ static const struct command commands[] = {
     {"stat", cmd_stat},
     {"cp", cmd_cp},
     {"mv", cmd_mv},
+    {"uptime", cmd_uptime},
+    {"mem", cmd_mem},
+    {"uname", cmd_uname},
     {"clear", cmd_clear},
     {"reboot", cmd_reboot},
 };
