@@ -15,6 +15,10 @@ void user_init(void);
 void user_register_programs(void);
 int user_exec(const char *path, const char *arg, struct trap_frame *tf);
 int user_current_is_shell(void);
+int user_fork(struct trap_frame *tf);
+int user_wait(void);
+int user_getpid(void);
+int user_exit_process(uintptr_t status, struct trap_frame *tf);
 void user_enter(uintptr_t entry, uintptr_t stack_top) __attribute__((noreturn));
 
 #endif

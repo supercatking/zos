@@ -30,6 +30,10 @@ The trap handler advances `sepc` by 4 before returning from handled syscalls.
 | 13 | `rename` | `a0=old_path`, `a1=new_path` | `0` or `-1` |
 | 14 | `uptime` | none | seconds since kernel timer init |
 | 15 | `meminfo` | `a0=buf`, `a1=len` | bytes written or `-1` |
+| 16 | `exec` | `a0=path`, `a1=arg string` | does not return on success, `-1` on failure |
+| 17 | `fork` | none | `0` in child, child pid in parent, or `-1` |
+| 18 | `wait` | none | child pid or `-1` |
+| 19 | `getpid` | none | current pid |
 
 Fd `0` reads from the serial terminal. Fd `1` and `2` write to the serial
 terminal. File descriptors from `3` upward refer to ramfs files and support
@@ -39,3 +43,7 @@ terminal. File descriptors from `3` upward refer to ramfs files and support
 
 The user shell is linked into the kernel image, copied into one or more user
 text pages, mapped with `PTE_U`, and entered with `sret`.
+
+The first process model is synchronous and educational: `fork` snapshots the
+parent user image, the child runs immediately, and `wait` reaps the child after
+the kernel restores the parent image.

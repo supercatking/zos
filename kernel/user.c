@@ -22,6 +22,26 @@ extern char _binary_build_user_bin_help_bin_end[];
 static size_t current_text_pages;
 static char current_program[32];
 
+enum proc_state {
+    PROC_UNUSED = 0,
+    PROC_RUNNING,
+    PROC_ZOMBIE,
+};
+
+struct proc {
+    int pid;
+    int ppid;
+    int exit_status;
+    enum proc_state state;
+    struct trap_frame parent_tf;
+    uint8_t text[USER_TEXT_PAGES * PAGE_SIZE];
+    uint8_t stack[PAGE_SIZE];
+};
+
+static struct proc procs[8];
+static int current_pid = 1;
+static int next_pid = 2;
+
 static int streq(const char *a, const char *b)
 {
     while (*a != '\0' && *b != '\0') {
@@ -98,6 +118,18 @@ static void zero_bytes(void *dst, size_t len)
     }
 }
 
+static void copy_from_user_image(uint8_t *text, uint8_t *stack)
+{
+    copy_bytes(text, (const void *)USER_TEXT_BASE, USER_TEXT_PAGES * PAGE_SIZE);
+    copy_bytes(stack, (const void *)USER_STACK_BASE, PAGE_SIZE);
+}
+
+static void copy_to_user_image(const uint8_t *text, const uint8_t *stack)
+{
+    (void)stack;
+    copy_bytes((void *)USER_TEXT_BASE, text, USER_TEXT_PAGES * PAGE_SIZE);
+}
+
 void user_init(void)
 {
     size_t image_size = (size_t)(_binary_build_user_shell_bin_end -
@@ -132,6 +164,9 @@ void user_init(void)
 
     current_text_pages = USER_TEXT_PAGES;
     copy_string(current_program, "/bin/sh", sizeof(current_program));
+    for (size_t i = 0; i < sizeof(procs) / sizeof(procs[0]); i++) {
+        procs[i].state = PROC_UNUSED;
+    }
 
     if (vm_map(vm_kernel_table(), USER_STACK_BASE, (uintptr_t)stack_page,
                PAGE_SIZE, PTE_R | PTE_W | PTE_U) != 0) {
@@ -147,12 +182,77 @@ int user_current_is_shell(void)
     return streq(current_program, "/bin/sh");
 }
 
+int user_getpid(void)
+{
+    return current_pid;
+}
+
+int user_fork(struct trap_frame *tf)
+{
+    for (size_t i = 0; i < sizeof(procs) / sizeof(procs[0]); i++) {
+        if (procs[i].state == PROC_UNUSED) {
+            int pid = next_pid++;
+
+            procs[i].pid = pid;
+            procs[i].ppid = current_pid;
+            procs[i].exit_status = 0;
+            procs[i].state = PROC_RUNNING;
+            procs[i].parent_tf = *tf;
+            procs[i].parent_tf.a0 = (uintptr_t)pid;
+            copy_from_user_image(procs[i].text, procs[i].stack);
+
+            current_pid = pid;
+            tf->a0 = 0;
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
+int user_exit_process(uintptr_t status, struct trap_frame *tf)
+{
+    if (current_pid == 1) {
+        return 0;
+    }
+
+    for (size_t i = 0; i < sizeof(procs) / sizeof(procs[0]); i++) {
+        if (procs[i].state == PROC_RUNNING && procs[i].pid == current_pid) {
+            procs[i].state = PROC_ZOMBIE;
+            procs[i].exit_status = (int)status;
+            copy_to_user_image(procs[i].text, procs[i].stack);
+            *tf = procs[i].parent_tf;
+            current_pid = procs[i].ppid;
+            copy_string(current_program, "/bin/sh", sizeof(current_program));
+            __asm__ volatile("sfence.vma" ::: "memory");
+            return 1;
+        }
+    }
+
+    return -1;
+}
+
+int user_wait(void)
+{
+    for (size_t i = 0; i < sizeof(procs) / sizeof(procs[0]); i++) {
+        if (procs[i].state == PROC_ZOMBIE && procs[i].ppid == current_pid) {
+            int pid = procs[i].pid;
+            procs[i].state = PROC_UNUSED;
+            return pid;
+        }
+    }
+
+    return -1;
+}
+
 int user_exec(const char *path, const char *arg, struct trap_frame *tf)
 {
     uintptr_t image_size = 0;
     const char *image = initramfs_data(path, &image_size);
     size_t image_pages = (image_size + PAGE_SIZE - 1u) / PAGE_SIZE;
-    char *arg_dst = (char *)USER_ARG_BASE;
+    uintptr_t arg_base = current_pid == 1 ? USER_ARG_BASE : USER_STACK_BASE + 256u;
+    uintptr_t stack_top = current_pid == 1 ? USER_STACK_TOP : USER_STACK_BASE + 2048u;
+    char *arg_dst = (char *)arg_base;
 
     if (image == 0 || tf == 0 || image_pages == 0 ||
         image_pages > current_text_pages) {
@@ -165,14 +265,14 @@ int user_exec(const char *path, const char *arg, struct trap_frame *tf)
 
     if (arg != 0) {
         copy_string(arg_dst, arg, 256);
-        tf->a0 = USER_ARG_BASE;
+        tf->a0 = arg_base;
     } else {
         arg_dst[0] = '\0';
-        tf->a0 = USER_ARG_BASE;
+        tf->a0 = arg_base;
     }
 
     tf->sepc = USER_TEXT_BASE;
-    tf->sp = USER_STACK_TOP;
+    tf->sp = stack_top;
     __asm__ volatile("sfence.vma" ::: "memory");
     return 0;
 }

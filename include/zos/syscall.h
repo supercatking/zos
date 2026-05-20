@@ -19,6 +19,9 @@
 #define SYS_UPTIME 14u
 #define SYS_MEMINFO 15u
 #define SYS_EXEC 16u
+#define SYS_FORK 17u
+#define SYS_WAIT 18u
+#define SYS_GETPID 19u
 
 void syscall_handle(struct trap_frame *tf);
 

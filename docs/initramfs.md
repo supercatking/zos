@@ -50,7 +50,9 @@ Commands:
 
 The command parser is intentionally tiny, but it now tokenizes `argc`/`argv`
 and dispatches through a builtin command table. Commands are still shell
-builtins rather than separate ELF programs.
+builtins when they need shell-local state. `help`, `echo`, `cat`, and `ls` are
+also available as embedded `/bin/*` user programs and run through the
+`fork`/`exec`/`wait` path.
 
 ## Smoke Test Input
 

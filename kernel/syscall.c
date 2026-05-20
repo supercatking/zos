@@ -60,8 +60,13 @@ static uintptr_t sys_read(uintptr_t fd, char *buf, uintptr_t len)
 
 static void sys_exit(uintptr_t status, struct trap_frame *tf)
 {
+    int exit_result = user_exit_process(status, tf);
+
+    if (exit_result > 0) {
+        return;
+    }
+
     if (!user_current_is_shell()) {
-        (void)status;
         if (user_exec("/bin/sh", "", tf) != 0) {
             console_puts("user: restart shell failed\n");
             for (;;) {
@@ -202,6 +207,15 @@ void syscall_handle(struct trap_frame *tf)
         if (user_exec((const char *)tf->a0, (const char *)tf->a1, tf) != 0) {
             tf->a0 = (uintptr_t)-1;
         }
+        break;
+    case SYS_FORK:
+        tf->a0 = (uintptr_t)user_fork(tf);
+        break;
+    case SYS_WAIT:
+        tf->a0 = (uintptr_t)user_wait();
+        break;
+    case SYS_GETPID:
+        tf->a0 = (uintptr_t)user_getpid();
         break;
     default:
         console_puts("syscall: unknown ");

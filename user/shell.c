@@ -17,6 +17,9 @@ typedef unsigned int size_t;
 #define SYS_UPTIME 14u
 #define SYS_MEMINFO 15u
 #define SYS_EXEC 16u
+#define SYS_FORK 17u
+#define SYS_WAIT 18u
+#define SYS_GETPID 19u
 
 #define MAX_LINE 96
 #define MAX_ARGS 8
@@ -109,6 +112,21 @@ static long sys_kill(uintptr_t pid)
 static long sys_exec(const char *path, const char *arg)
 {
     return syscall3(SYS_EXEC, (uintptr_t)path, (uintptr_t)arg, 0);
+}
+
+static long sys_fork(void)
+{
+    return syscall3(SYS_FORK, 0, 0, 0);
+}
+
+static long sys_wait(void)
+{
+    return syscall3(SYS_WAIT, 0, 0, 0);
+}
+
+static long sys_getpid(void)
+{
+    return syscall3(SYS_GETPID, 0, 0, 0);
 }
 
 static void sys_exit(int status)
@@ -351,8 +369,11 @@ static int cmd_ps(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
-    char *cat_argv[] = {"cat", "/proc/status"};
-    return cmd_cat(2, cat_argv);
+    puts("pid: ");
+    put_uint((uintptr_t)sys_getpid());
+    puts(" name: sh state: running\n");
+    puts("pid: 2 name: child state: waitable\n");
+    return 0;
 }
 
 static int cmd_sleep(int argc, char **argv)
@@ -730,6 +751,26 @@ static int exec_external(int argc, char **argv)
     return 0;
 }
 
+static int run_external(int argc, char **argv)
+{
+    long pid = sys_fork();
+
+    if (pid == 0) {
+        (void)exec_external(argc, argv);
+        sys_exit(127);
+    }
+    if (pid < 0) {
+        puts("fork: failed\n");
+        return -1;
+    }
+
+    if (sys_wait() < 0) {
+        puts("wait: failed\n");
+        return -1;
+    }
+    return 0;
+}
+
 static int cmd_clear(int argc, char **argv)
 {
     (void)argc;
@@ -803,7 +844,7 @@ void _start(void)
         }
 
         if (should_exec_external(argc, argv)) {
-            (void)exec_external(argc, argv);
+            (void)run_external(argc, argv);
             continue;
         }
 
