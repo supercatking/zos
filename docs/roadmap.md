@@ -138,3 +138,13 @@ Current status: Step 1 introduces the VFS wrapper and `/dev/console`. Step 2
 moves proc-style files behind dynamic VFS nodes: `/proc/status`,
 `/proc/meminfo`, `/proc/uptime`, and `/proc/<pid>`. Step 3 adapts user tools
 so `ps` reads `/proc/status`.
+
+## M12: virtio-blk
+
+- Map the QEMU `virt` virtio-mmio transport window.
+- Probe virtio-mmio devices and identify virtio block devices when QEMU starts
+  with one attached.
+
+Current status: Step 1 detects virtio-mmio transports and reports
+`virtio-blk: found` or `virtio-blk: not found`. Step 2 should initialize the
+block virtqueue and implement synchronous sector read/write.

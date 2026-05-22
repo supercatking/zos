@@ -62,6 +62,7 @@ KERNEL_SRCS := \
 	kernel/switch.S \
 	kernel/elf.c \
 	kernel/vfs.c \
+	kernel/virtio.c \
 	kernel/syscall.c \
 	kernel/trap.c \
 	kernel/user.c \

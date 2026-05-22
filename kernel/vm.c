@@ -126,6 +126,14 @@ void vm_init(void)
     }
 
     if (vm_map(kernel_root,
+               VM_VIRTIO_MMIO_BASE,
+               VM_VIRTIO_MMIO_BASE,
+               VM_VIRTIO_MMIO_SIZE,
+               PTE_R | PTE_W | PTE_G) != 0) {
+        PANIC("vm: map virtio mmio failed");
+    }
+
+    if (vm_map(kernel_root,
                VM_RAM_BASE,
                VM_RAM_BASE,
                VM_RAM_END - VM_RAM_BASE,

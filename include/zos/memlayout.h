@@ -12,6 +12,11 @@
 
 #define UART0_BASE 0x10000000u
 
+#define VIRTIO_MMIO_BASE 0x10001000u
+#define VIRTIO_MMIO_STRIDE 0x1000u
+#define VIRTIO_MMIO_COUNT 8u
+#define VIRTIO_MMIO_SIZE (VIRTIO_MMIO_STRIDE * VIRTIO_MMIO_COUNT)
+
 static inline uintptr_t page_align_down(uintptr_t value)
 {
     return value & ~(uintptr_t)(PAGE_SIZE - 1u);
