@@ -42,4 +42,14 @@ struct diskfs_dirent {
     char name[DISKFS_NAME_MAX];
 };
 
+void diskfs_mount(void);
+int diskfs_mounted(void);
+int diskfs_open(const char *path);
+int diskfs_create(const char *path);
+uintptr_t diskfs_read(int fd, char *buf, uintptr_t len);
+uintptr_t diskfs_write(int fd, const char *buf, uintptr_t len);
+int diskfs_close(int fd);
+uintptr_t diskfs_list(char *buf, uintptr_t len);
+uintptr_t diskfs_stat(const char *path, char *buf, uintptr_t len);
+
 #endif

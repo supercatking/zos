@@ -1,6 +1,7 @@
 #include <zos/assert.h>
 #include <zos/block.h>
 #include <zos/console.h>
+#include <zos/diskfs.h>
 #include <zos/elf.h>
 #include <zos/initramfs.h>
 #include <zos/pmm.h>
@@ -82,6 +83,7 @@ void kernel_main(uintptr_t hart_id, uintptr_t dtb)
     vfs_init();
     virtio_mmio_probe();
     block_cache_init();
+    diskfs_mount();
     elf32_self_test();
 
     trap_init();

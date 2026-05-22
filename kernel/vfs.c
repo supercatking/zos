@@ -1,4 +1,5 @@
 #include <zos/console.h>
+#include <zos/diskfs.h>
 #include <zos/initramfs.h>
 #include <zos/pmm.h>
 #include <zos/timer.h>
@@ -189,6 +190,9 @@ int vfs_open(const char *path)
     if (path != 0 && starts_with(path, "/proc/")) {
         return proc_open(path);
     }
+    if (path != 0 && starts_with(path, "/disk/")) {
+        return diskfs_open(path);
+    }
 
     return initramfs_open(path);
 }
@@ -197,6 +201,9 @@ int vfs_create(const char *path)
 {
     if (path != 0 && streq(path, "/dev/console")) {
         return -1;
+    }
+    if (path != 0 && starts_with(path, "/disk/")) {
+        return diskfs_create(path);
     }
 
     return initramfs_create(path);
@@ -228,6 +235,9 @@ uintptr_t vfs_read(int fd, char *buf, uintptr_t len)
         }
         return count;
     }
+    if (fd >= 130 && fd < 134) {
+        return diskfs_read(fd, buf, len);
+    }
 
     return initramfs_read(fd, buf, len);
 }
@@ -239,6 +249,9 @@ uintptr_t vfs_write(int fd, const char *buf, uintptr_t len)
             console_putchar(buf[i]);
         }
         return len;
+    }
+    if (fd >= 130 && fd < 134) {
+        return diskfs_write(fd, buf, len);
     }
 
     return initramfs_write(fd, buf, len);
@@ -260,6 +273,9 @@ int vfs_close(int fd)
         proc_files[slot].len = 0;
         return 0;
     }
+    if (fd >= 130 && fd < 134) {
+        return diskfs_close(fd);
+    }
 
     return initramfs_close(fd);
 }
@@ -278,6 +294,9 @@ uintptr_t vfs_list(const char *path, char *buf, uintptr_t len)
         out = append_str(buf, out, len, "uptime\n");
         out = append_str(buf, out, len, "1\n");
         return out;
+    }
+    if (path != 0 && streq(path, "/disk")) {
+        return diskfs_list(buf, len);
     }
 
     return initramfs_list(path, buf, len);
@@ -315,6 +334,9 @@ uintptr_t vfs_stat(const char *path, char *buf, uintptr_t len)
         out = append_str(buf, out, len, path);
         out = append_str(buf, out, len, " size=dynamic\n");
         return out;
+    }
+    if (path != 0 && starts_with(path, "/disk/")) {
+        return diskfs_stat(path, buf, len);
     }
 
     return initramfs_stat(path, buf, len);

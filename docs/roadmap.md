@@ -159,6 +159,7 @@ and `block_write_sector` for the future disk filesystem.
   sectors 2-3 for inodes, sector 4 for root dirents, and sector 8 onward for
   file data.
 
-Current status: Step 1 defines the on-disk structs and constants. Step 2 should
-adds `scripts/mkfs_zos.py` and `make disk-image`, which creates a disk image
-with `/README`.
+Current status: Step 1 defines the on-disk structs and constants. Step 2 adds
+`scripts/mkfs_zos.py` and `make disk-image`, which creates a disk image with
+`/README`. Step 3 mounts the image at `/disk` and supports
+`ls/cat/touch/echo > file` for one-block files.
