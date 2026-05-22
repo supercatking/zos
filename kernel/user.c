@@ -24,7 +24,6 @@ extern char _binary_build_user_bin_vmtest_bin_start[];
 extern char _binary_build_user_bin_vmtest_bin_end[];
 
 static size_t current_text_pages;
-static char current_program[32];
 
 enum proc_state {
     PROC_UNUSED = 0,
@@ -45,7 +44,7 @@ struct proc {
     void *stack_page;
     uint8_t kernel_stack[PAGE_SIZE];
     struct trap_frame tf;
-    struct trap_frame parent_tf;
+    char program[32];
     int waiting;
 };
 
@@ -53,6 +52,18 @@ static struct proc procs[8];
 static struct proc *current_proc;
 static int current_pid = 1;
 static int next_pid = 2;
+
+static const char *program_name(const char *path)
+{
+    const char *name = path;
+
+    for (const char *p = path; *p != '\0'; p++) {
+        if (*p == '/') {
+            name = p + 1;
+        }
+    }
+    return name;
+}
 
 static const char *proc_state_name(enum proc_state state)
 {
@@ -244,6 +255,55 @@ static void proc_load_image(struct proc *proc, const char *image, size_t image_s
     }
 }
 
+static size_t proc_index(struct proc *proc)
+{
+    for (size_t i = 0; i < sizeof(procs) / sizeof(procs[0]); i++) {
+        if (&procs[i] == proc) {
+            return i;
+        }
+    }
+    return 0;
+}
+
+static struct proc *pick_next_runnable(void)
+{
+    size_t start = current_proc == 0 ? 0 : proc_index(current_proc) + 1u;
+
+    for (size_t pass = 0; pass < sizeof(procs) / sizeof(procs[0]); pass++) {
+        size_t i = (start + pass) % (sizeof(procs) / sizeof(procs[0]));
+        if (procs[i].state == PROC_RUNNABLE) {
+            return &procs[i];
+        }
+    }
+
+    return 0;
+}
+
+static void schedule_next(struct trap_frame *tf)
+{
+    struct proc *next;
+
+    if (current_proc != 0 && current_proc->state == PROC_RUNNING) {
+        current_proc->tf = *tf;
+        current_proc->state = PROC_RUNNABLE;
+    }
+
+    next = pick_next_runnable();
+    if (next == 0) {
+        if (current_proc != 0 && current_proc->state == PROC_RUNNABLE) {
+            next = current_proc;
+        } else {
+            return;
+        }
+    }
+
+    next->state = PROC_RUNNING;
+    current_proc = next;
+    current_pid = next->pid;
+    vm_switch(next->pagetable);
+    *tf = next->tf;
+}
+
 void user_init(void)
 {
     size_t image_size = (size_t)(_binary_build_user_shell_bin_end -
@@ -256,7 +316,6 @@ void user_init(void)
     }
 
     current_text_pages = USER_TEXT_PAGES;
-    copy_string(current_program, "/bin/sh", sizeof(current_program));
     for (size_t i = 0; i < sizeof(procs) / sizeof(procs[0]); i++) {
         procs[i].state = PROC_UNUSED;
     }
@@ -266,6 +325,7 @@ void user_init(void)
     init->exit_status = 0;
     init->state = PROC_RUNNING;
     init->waiting = 0;
+    copy_string(init->program, "/bin/sh", sizeof(init->program));
     if (proc_alloc_address_space(init) != 0) {
         PANIC("user: init address space failed");
     }
@@ -279,7 +339,7 @@ void user_init(void)
 
 int user_current_is_shell(void)
 {
-    return streq(current_program, "/bin/sh");
+    return current_proc != 0 && streq(current_proc->program, "/bin/sh");
 }
 
 int user_getpid(void)
@@ -302,7 +362,9 @@ uintptr_t user_procinfo(char *buf, uintptr_t len)
         out = append_uint(buf, out, len, (uintptr_t)procs[i].ppid);
         out = append_str(buf, out, len, " state: ");
         out = append_str(buf, out, len, proc_state_name(procs[i].state));
-        out = append_str(buf, out, len, procs[i].pid == 1 ? " name: sh\n" : " name: child\n");
+        out = append_str(buf, out, len, " name: ");
+        out = append_str(buf, out, len, program_name(procs[i].program));
+        out = append_char(buf, out, len, '\n');
     }
 
     return out;
@@ -317,21 +379,19 @@ int user_fork(struct trap_frame *tf)
             procs[i].pid = pid;
             procs[i].ppid = current_pid;
             procs[i].exit_status = 0;
-            procs[i].state = PROC_RUNNING;
+            procs[i].state = PROC_RUNNABLE;
             procs[i].waiting = 0;
             if (proc_alloc_address_space(&procs[i]) != 0) {
                 procs[i].state = PROC_UNUSED;
                 return -1;
             }
-            procs[i].parent_tf = *tf;
-            procs[i].parent_tf.a0 = (uintptr_t)pid;
+            procs[i].tf = *tf;
+            procs[i].tf.a0 = 0;
+            copy_string(procs[i].program, current_proc->program,
+                        sizeof(procs[i].program));
             proc_copy_user_image(&procs[i], current_proc);
 
-            current_proc = &procs[i];
-            current_pid = pid;
-            vm_switch(current_proc->pagetable);
-            tf->a0 = 0;
-            return 0;
+            return pid;
         }
     }
 
@@ -348,17 +408,20 @@ int user_exit_process(uintptr_t status, struct trap_frame *tf)
         if (procs[i].state == PROC_RUNNING && procs[i].pid == current_pid) {
             struct proc *parent = proc_by_pid(procs[i].ppid);
 
-            if (parent == 0) {
+            if (parent == 0 || tf == 0) {
                 return -1;
             }
 
             procs[i].state = PROC_ZOMBIE;
             procs[i].exit_status = (int)status;
-            *tf = procs[i].parent_tf;
-            current_proc = parent;
-            current_pid = procs[i].ppid;
-            vm_switch(current_proc->pagetable);
-            copy_string(current_program, "/bin/sh", sizeof(current_program));
+            procs[i].tf = *tf;
+            if (parent->state == PROC_BLOCKED && parent->waiting) {
+                parent->tf.a0 = (uintptr_t)procs[i].pid;
+                parent->waiting = 0;
+                parent->state = PROC_RUNNABLE;
+                procs[i].state = PROC_UNUSED;
+            }
+            schedule_next(tf);
             return 1;
         }
     }
@@ -366,7 +429,17 @@ int user_exit_process(uintptr_t status, struct trap_frame *tf)
     return -1;
 }
 
-int user_wait(void)
+static int has_child(int pid)
+{
+    for (size_t i = 0; i < sizeof(procs) / sizeof(procs[0]); i++) {
+        if (procs[i].state != PROC_UNUSED && procs[i].ppid == pid) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int user_wait(struct trap_frame *tf)
 {
     for (size_t i = 0; i < sizeof(procs) / sizeof(procs[0]); i++) {
         if (procs[i].state == PROC_ZOMBIE && procs[i].ppid == current_pid) {
@@ -374,6 +447,14 @@ int user_wait(void)
             procs[i].state = PROC_UNUSED;
             return pid;
         }
+    }
+
+    if (has_child(current_pid)) {
+        current_proc->tf = *tf;
+        current_proc->state = PROC_BLOCKED;
+        current_proc->waiting = 1;
+        schedule_next(tf);
+        return -2;
     }
 
     return -1;
@@ -394,7 +475,7 @@ int user_exec(const char *path, const char *arg, struct trap_frame *tf)
     }
 
     proc_load_image(current_proc, image, image_size);
-    copy_string(current_program, path, sizeof(current_program));
+    copy_string(current_proc->program, path, sizeof(current_proc->program));
 
     if (arg != 0) {
         copy_string(arg_dst, arg, 256);
@@ -408,6 +489,17 @@ int user_exec(const char *path, const char *arg, struct trap_frame *tf)
     tf->sp = stack_top;
     __asm__ volatile("sfence.vma" ::: "memory");
     return 0;
+}
+
+void user_timer_tick(struct trap_frame *tf)
+{
+    if (current_proc == 0 || tf == 0) {
+        return;
+    }
+
+    if (pick_next_runnable() != 0) {
+        schedule_next(tf);
+    }
 }
 
 void user_enter(uintptr_t entry, uintptr_t stack_top)

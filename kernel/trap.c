@@ -4,6 +4,7 @@
 #include <zos/syscall.h>
 #include <zos/timer.h>
 #include <zos/trap.h>
+#include <zos/user.h>
 
 #define TRAP_KERNEL_STACK_SIZE 4096u
 
@@ -35,6 +36,7 @@ void trap_handler(struct trap_frame *tf)
         } else {
             timer_handle_interrupt();
         }
+        user_timer_tick(tf);
         return;
     }
 

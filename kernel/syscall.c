@@ -212,8 +212,13 @@ void syscall_handle(struct trap_frame *tf)
         tf->a0 = (uintptr_t)user_fork(tf);
         break;
     case SYS_WAIT:
-        tf->a0 = (uintptr_t)user_wait();
+    {
+        int wait_result = user_wait(tf);
+        if (wait_result != -2) {
+            tf->a0 = (uintptr_t)wait_result;
+        }
         break;
+    }
     case SYS_GETPID:
         tf->a0 = (uintptr_t)user_getpid();
         break;
