@@ -53,15 +53,14 @@ and dispatches through a builtin command table. Commands are still shell
 builtins when they need shell-local state. `help`, `echo`, `cat`, `ls`,
 `forktest`, `multiforktest`, `vmtest`, and `schedtest` are also available as
 embedded `/bin/*` user programs and run through the `fork`/`exec`/`wait` path.
-`/bin/elfecho` is an ELF-backed echo image used while M10 transitions execution
-from raw binaries to ELF files.
+M10 loads the embedded `/bin/*` programs as ELF images.
 
 ## Smoke Test Input
 
 The QEMU smoke script can feed serial input:
 
 ```sh
-QEMU_SMOKE_INPUT='help\nwhich echo\n/bin/echo hello\n/bin/elfecho hello\necho hello\n/bin/forktest\n/bin/multiforktest\n/bin/vmtest\n/bin/schedtest\ntouch a\nls /bin\nls\necho hello > a\ncat a\ncat /README\nps\npwd\nclear\nenv\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
-QEMU_SMOKE_EXPECT='commands:;echo;hello;elfecho;forktest: child saw 0;forktest: wait reaped child;multifork: wait reaped 3;multifork: ok;vmtest: isolation ok;schedtest: wait reaped 3;schedtest: ok;multiforktest;schedtest;a;ZOS README;pid: 1 ppid: 0 state: running name: sh;PATH=/bin;history;lines=1 words=1 bytes=6;user: halted cleanly' \
+QEMU_SMOKE_INPUT='help\nwhich echo\n/bin/echo hello\necho hello\n/bin/forktest\n/bin/multiforktest\n/bin/vmtest\n/bin/schedtest\ntouch a\nls /bin\nls\necho hello > a\ncat a\ncat /README\nps\npwd\nclear\nenv\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
+QEMU_SMOKE_EXPECT='commands:;echo;hello;forktest: child saw 0;forktest: wait reaped child;multifork: wait reaped 3;multifork: ok;vmtest: isolation ok;schedtest: wait reaped 3;schedtest: ok;multiforktest;schedtest;a;ZOS README;pid: 1 ppid: 0 state: running name: sh;PATH=/bin;history;lines=1 words=1 bytes=6;user: halted cleanly' \
 make test
 ```

@@ -123,4 +123,5 @@ loader.
 
 Current status: Step 1 adds parser validation and a boot-time parser self-test.
 Step 2 loads ELF `PT_LOAD` segments during `exec` and keeps raw binary fallback
-active until the full `/bin/*` switch is complete.
+available for compatibility. Step 3 switches the embedded `/bin/*` images and
+init shell to ELF blobs.

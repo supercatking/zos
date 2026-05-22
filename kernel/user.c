@@ -9,28 +9,27 @@
 #include <zos/user.h>
 #include <zos/vm.h>
 
-extern char _binary_build_user_shell_bin_start[];
-extern char _binary_build_user_shell_bin_end[];
-extern char _binary_build_user_bin_echo_bin_start[];
-extern char _binary_build_user_bin_echo_bin_end[];
+extern char _binary_build_user_shell_elf_start[];
+extern char _binary_build_user_shell_elf_end[];
 extern char _binary_build_user_bin_echo_elf_start[];
 extern char _binary_build_user_bin_echo_elf_end[];
-extern char _binary_build_user_bin_cat_bin_start[];
-extern char _binary_build_user_bin_cat_bin_end[];
-extern char _binary_build_user_bin_ls_bin_start[];
-extern char _binary_build_user_bin_ls_bin_end[];
-extern char _binary_build_user_bin_help_bin_start[];
-extern char _binary_build_user_bin_help_bin_end[];
-extern char _binary_build_user_bin_forktest_bin_start[];
-extern char _binary_build_user_bin_forktest_bin_end[];
-extern char _binary_build_user_bin_vmtest_bin_start[];
-extern char _binary_build_user_bin_vmtest_bin_end[];
-extern char _binary_build_user_bin_multiforktest_bin_start[];
-extern char _binary_build_user_bin_multiforktest_bin_end[];
-extern char _binary_build_user_bin_schedtest_bin_start[];
-extern char _binary_build_user_bin_schedtest_bin_end[];
+extern char _binary_build_user_bin_cat_elf_start[];
+extern char _binary_build_user_bin_cat_elf_end[];
+extern char _binary_build_user_bin_ls_elf_start[];
+extern char _binary_build_user_bin_ls_elf_end[];
+extern char _binary_build_user_bin_help_elf_start[];
+extern char _binary_build_user_bin_help_elf_end[];
+extern char _binary_build_user_bin_forktest_elf_start[];
+extern char _binary_build_user_bin_forktest_elf_end[];
+extern char _binary_build_user_bin_vmtest_elf_start[];
+extern char _binary_build_user_bin_vmtest_elf_end[];
+extern char _binary_build_user_bin_multiforktest_elf_start[];
+extern char _binary_build_user_bin_multiforktest_elf_end[];
+extern char _binary_build_user_bin_schedtest_elf_start[];
+extern char _binary_build_user_bin_schedtest_elf_end[];
 
 static size_t current_text_pages;
+static uintptr_t init_entry = USER_TEXT_BASE;
 
 enum proc_state {
     PROC_UNUSED = 0,
@@ -162,26 +161,24 @@ static void add_program(const char *path, const char *start, const char *end)
 
 void user_register_programs(void)
 {
-    add_program("/bin/sh", _binary_build_user_shell_bin_start,
-                _binary_build_user_shell_bin_end);
-    add_program("/bin/echo", _binary_build_user_bin_echo_bin_start,
-                _binary_build_user_bin_echo_bin_end);
-    add_program("/bin/elfecho", _binary_build_user_bin_echo_elf_start,
+    add_program("/bin/sh", _binary_build_user_shell_elf_start,
+                _binary_build_user_shell_elf_end);
+    add_program("/bin/echo", _binary_build_user_bin_echo_elf_start,
                 _binary_build_user_bin_echo_elf_end);
-    add_program("/bin/cat", _binary_build_user_bin_cat_bin_start,
-                _binary_build_user_bin_cat_bin_end);
-    add_program("/bin/ls", _binary_build_user_bin_ls_bin_start,
-                _binary_build_user_bin_ls_bin_end);
-    add_program("/bin/help", _binary_build_user_bin_help_bin_start,
-                _binary_build_user_bin_help_bin_end);
-    add_program("/bin/forktest", _binary_build_user_bin_forktest_bin_start,
-                _binary_build_user_bin_forktest_bin_end);
-    add_program("/bin/vmtest", _binary_build_user_bin_vmtest_bin_start,
-                _binary_build_user_bin_vmtest_bin_end);
-    add_program("/bin/multiforktest", _binary_build_user_bin_multiforktest_bin_start,
-                _binary_build_user_bin_multiforktest_bin_end);
-    add_program("/bin/schedtest", _binary_build_user_bin_schedtest_bin_start,
-                _binary_build_user_bin_schedtest_bin_end);
+    add_program("/bin/cat", _binary_build_user_bin_cat_elf_start,
+                _binary_build_user_bin_cat_elf_end);
+    add_program("/bin/ls", _binary_build_user_bin_ls_elf_start,
+                _binary_build_user_bin_ls_elf_end);
+    add_program("/bin/help", _binary_build_user_bin_help_elf_start,
+                _binary_build_user_bin_help_elf_end);
+    add_program("/bin/forktest", _binary_build_user_bin_forktest_elf_start,
+                _binary_build_user_bin_forktest_elf_end);
+    add_program("/bin/vmtest", _binary_build_user_bin_vmtest_elf_start,
+                _binary_build_user_bin_vmtest_elf_end);
+    add_program("/bin/multiforktest", _binary_build_user_bin_multiforktest_elf_start,
+                _binary_build_user_bin_multiforktest_elf_end);
+    add_program("/bin/schedtest", _binary_build_user_bin_schedtest_elf_start,
+                _binary_build_user_bin_schedtest_elf_end);
 }
 
 static void copy_bytes(void *dst, const void *src, size_t len)
@@ -412,14 +409,9 @@ static void schedule_next(struct trap_frame *tf)
 
 void user_init(void)
 {
-    size_t image_size = (size_t)(_binary_build_user_shell_bin_end -
-                                 _binary_build_user_shell_bin_start);
-    size_t image_pages = (image_size + PAGE_SIZE - 1u) / PAGE_SIZE;
+    size_t image_size = (size_t)(_binary_build_user_shell_elf_end -
+                                 _binary_build_user_shell_elf_start);
     struct proc *init = &procs[0];
-
-    if (image_pages > USER_TEXT_PAGES) {
-        PANIC("user: out of pages");
-    }
 
     current_text_pages = USER_TEXT_PAGES;
     for (size_t i = 0; i < sizeof(procs) / sizeof(procs[0]); i++) {
@@ -435,7 +427,10 @@ void user_init(void)
     if (proc_alloc_address_space(init) != 0) {
         PANIC("user: init address space failed");
     }
-    proc_load_image(init, _binary_build_user_shell_bin_start, image_size);
+    if (proc_load_elf(init, _binary_build_user_shell_elf_start, image_size,
+                      &init_entry) != 0) {
+        PANIC("user: init elf load failed");
+    }
     current_proc = init;
     current_pid = init->pid;
 
@@ -446,6 +441,11 @@ void user_init(void)
 int user_current_is_shell(void)
 {
     return current_proc != 0 && streq(current_proc->program, "/bin/sh");
+}
+
+uintptr_t user_init_entry(void)
+{
+    return init_entry;
 }
 
 int user_getpid(void)
@@ -572,18 +572,21 @@ int user_exec(const char *path, const char *arg, struct trap_frame *tf)
 {
     uintptr_t image_size = 0;
     const char *image = initramfs_data(path, &image_size);
-    size_t image_pages = (image_size + PAGE_SIZE - 1u) / PAGE_SIZE;
     uintptr_t entry = USER_TEXT_BASE;
     uintptr_t arg_base = USER_ARG_BASE;
     uintptr_t stack_top = USER_STACK_TOP;
     char *arg_dst = (char *)arg_base;
 
-    if (image == 0 || tf == 0 || image_pages == 0 ||
-        image_pages > current_text_pages) {
+    if (image == 0 || tf == 0 || image_size == 0) {
         return -1;
     }
 
     if (proc_load_elf(current_proc, image, image_size, &entry) != 0) {
+        size_t image_pages = (image_size + PAGE_SIZE - 1u) / PAGE_SIZE;
+
+        if (image_pages == 0 || image_pages > current_text_pages) {
+            return -1;
+        }
         proc_load_image(current_proc, image, image_size);
         entry = USER_TEXT_BASE;
     }

@@ -13,6 +13,7 @@ struct trap_frame;
 
 void user_init(void);
 void user_register_programs(void);
+uintptr_t user_init_entry(void);
 int user_exec(const char *path, const char *arg, struct trap_frame *tf);
 int user_current_is_shell(void);
 int user_fork(struct trap_frame *tf);

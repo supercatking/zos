@@ -93,5 +93,5 @@ void kernel_main(uintptr_t hart_id, uintptr_t dtb)
     console_puts("thread: cooperative smoke complete\n");
 
     user_init();
-    user_enter(USER_TEXT_BASE, USER_STACK_TOP);
+    user_enter(user_init_entry(), USER_STACK_TOP);
 }
