@@ -150,3 +150,14 @@ Current status: Step 1 detects virtio-mmio transports and reports
 virtio-mmio block queue and performs a synchronous sector 0 read when a disk is
 attached. Step 3 adds a one-sector block cache and exposes `block_read_sector`
 and `block_write_sector` for the future disk filesystem.
+
+## M13: Simple Disk Filesystem
+
+- Define a small teaching disk format with a superblock, fixed inode table,
+  root directory entries, and direct data blocks.
+- Reserve sector 0 for external boot/test data, sector 1 for the superblock,
+  sectors 2-3 for inodes, sector 4 for root dirents, and sector 8 onward for
+  file data.
+
+Current status: Step 1 defines the on-disk structs and constants. Step 2 should
+add a host `mkfs` tool that creates a disk image with `/README`.
