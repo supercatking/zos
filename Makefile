@@ -73,7 +73,7 @@ KERNEL_SRCS := \
 KERNEL_OBJS := $(patsubst %.S,$(BUILD_DIR)/%.o,$(patsubst %.c,$(BUILD_DIR)/%.o,$(KERNEL_SRCS)))
 KERNEL_OBJS += $(USER_PROGRAM_OBJS)
 
-.PHONY: all build run test regression clean toolchain
+.PHONY: all build run test regression disk-image clean toolchain
 
 all: build
 
@@ -196,6 +196,9 @@ regression: build
 	QEMU_SMOKE_INPUT='help\nwhich echo\n/bin/echo hello\necho hello\n/bin/forktest\n/bin/multiforktest\n/bin/vmtest\n/bin/schedtest\ntouch a\nls /bin\nls /dev\nstat /dev/console\ncat /dev/console\nls /proc\ncat /proc/status\ncat /proc/meminfo\ncat /proc/uptime\ncat /proc/1\nls\necho hello > a\ncat a\ncat /README\nps\npwd\nclear\nenv\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
 	QEMU_SMOKE_EXPECT='commands:;echo;hello;forktest: child saw 0;forktest: wait reaped child;multifork: wait reaped 3;multifork: ok;vmtest: isolation ok;schedtest: wait reaped 3;schedtest: ok;multiforktest;schedtest;console;char /dev/console;status;meminfo;uptime;pid: 1 ppid: 0 state: running name: sh;mem total_pages=;uptime ;pid: 1;a;ZOS README;pid: 1 ppid: 0 state: running name: sh;PATH=/bin;history;lines=1 words=1 bytes=6;user: halted cleanly' \
 	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
+
+disk-image:
+	python3 scripts/mkfs_zos.py $(BUILD_DIR)/zos.img
 
 clean:
 	rm -rf $(BUILD_DIR)

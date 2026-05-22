@@ -160,4 +160,5 @@ and `block_write_sector` for the future disk filesystem.
   file data.
 
 Current status: Step 1 defines the on-disk structs and constants. Step 2 should
-add a host `mkfs` tool that creates a disk image with `/README`.
+adds `scripts/mkfs_zos.py` and `make disk-image`, which creates a disk image
+with `/README`.
