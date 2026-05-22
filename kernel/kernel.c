@@ -80,6 +80,15 @@ void kernel_main(uintptr_t hart_id, uintptr_t dtb)
     user_register_programs();
     vfs_init();
     virtio_mmio_probe();
+    if (virtio_blk_found()) {
+        void *sector = pmm_alloc_page();
+
+        if (sector != 0 && virtio_blk_read_sector(0, sector) == 0) {
+            console_puts("virtio-blk: sector0 read ok\n");
+        } else {
+            console_puts("virtio-blk: sector0 read failed\n");
+        }
+    }
     elf32_self_test();
 
     trap_init();
