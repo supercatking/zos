@@ -22,6 +22,10 @@ extern char _binary_build_user_bin_forktest_bin_start[];
 extern char _binary_build_user_bin_forktest_bin_end[];
 extern char _binary_build_user_bin_vmtest_bin_start[];
 extern char _binary_build_user_bin_vmtest_bin_end[];
+extern char _binary_build_user_bin_multiforktest_bin_start[];
+extern char _binary_build_user_bin_multiforktest_bin_end[];
+extern char _binary_build_user_bin_schedtest_bin_start[];
+extern char _binary_build_user_bin_schedtest_bin_end[];
 
 static size_t current_text_pages;
 
@@ -169,6 +173,10 @@ void user_register_programs(void)
                 _binary_build_user_bin_forktest_bin_end);
     add_program("/bin/vmtest", _binary_build_user_bin_vmtest_bin_start,
                 _binary_build_user_bin_vmtest_bin_end);
+    add_program("/bin/multiforktest", _binary_build_user_bin_multiforktest_bin_start,
+                _binary_build_user_bin_multiforktest_bin_end);
+    add_program("/bin/schedtest", _binary_build_user_bin_schedtest_bin_start,
+                _binary_build_user_bin_schedtest_bin_end);
 }
 
 static void copy_bytes(void *dst, const void *src, size_t len)
@@ -253,6 +261,23 @@ static void proc_load_image(struct proc *proc, const char *image, size_t image_s
             copy_bytes(proc->text_pages[i], image + offset, copy_len);
         }
     }
+}
+
+static void proc_release_user_pages(struct proc *proc)
+{
+    for (size_t i = 0; i < USER_TEXT_PAGES; i++) {
+        if (proc->text_pages[i] != 0) {
+            pmm_free_page(proc->text_pages[i]);
+            proc->text_pages[i] = 0;
+        }
+    }
+
+    if (proc->stack_page != 0) {
+        pmm_free_page(proc->stack_page);
+        proc->stack_page = 0;
+    }
+
+    proc->pagetable = 0;
 }
 
 static size_t proc_index(struct proc *proc)
@@ -419,6 +444,7 @@ int user_exit_process(uintptr_t status, struct trap_frame *tf)
                 parent->tf.a0 = (uintptr_t)procs[i].pid;
                 parent->waiting = 0;
                 parent->state = PROC_RUNNABLE;
+                proc_release_user_pages(&procs[i]);
                 procs[i].state = PROC_UNUSED;
             }
             schedule_next(tf);
@@ -444,6 +470,7 @@ int user_wait(struct trap_frame *tf)
     for (size_t i = 0; i < sizeof(procs) / sizeof(procs[0]); i++) {
         if (procs[i].state == PROC_ZOMBIE && procs[i].ppid == current_pid) {
             int pid = procs[i].pid;
+            proc_release_user_pages(&procs[i]);
             procs[i].state = PROC_UNUSED;
             return pid;
         }

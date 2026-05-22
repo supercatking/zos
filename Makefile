@@ -22,7 +22,13 @@ USER_FORKTEST_OBJ := $(BUILD_DIR)/user/bin/forktest_bin.o
 USER_VMTEST_ELF := $(BUILD_DIR)/user/bin/vmtest.elf
 USER_VMTEST_BIN := $(BUILD_DIR)/user/bin/vmtest.bin
 USER_VMTEST_OBJ := $(BUILD_DIR)/user/bin/vmtest_bin.o
-USER_PROGRAM_OBJS := $(USER_SHELL_OBJ) $(USER_ECHO_OBJ) $(USER_CAT_OBJ) $(USER_LS_OBJ) $(USER_HELP_OBJ) $(USER_FORKTEST_OBJ) $(USER_VMTEST_OBJ)
+USER_MULTIFORKTEST_ELF := $(BUILD_DIR)/user/bin/multiforktest.elf
+USER_MULTIFORKTEST_BIN := $(BUILD_DIR)/user/bin/multiforktest.bin
+USER_MULTIFORKTEST_OBJ := $(BUILD_DIR)/user/bin/multiforktest_bin.o
+USER_SCHEDTEST_ELF := $(BUILD_DIR)/user/bin/schedtest.elf
+USER_SCHEDTEST_BIN := $(BUILD_DIR)/user/bin/schedtest.bin
+USER_SCHEDTEST_OBJ := $(BUILD_DIR)/user/bin/schedtest_bin.o
+USER_PROGRAM_OBJS := $(USER_SHELL_OBJ) $(USER_ECHO_OBJ) $(USER_CAT_OBJ) $(USER_LS_OBJ) $(USER_HELP_OBJ) $(USER_FORKTEST_OBJ) $(USER_VMTEST_OBJ) $(USER_MULTIFORKTEST_OBJ) $(USER_SCHEDTEST_OBJ)
 OPENSBI_RV32 := /usr/lib/riscv32-linux-gnu/opensbi/generic/fw_dynamic.bin
 
 ifneq ($(shell command -v riscv64-unknown-elf-gcc 2>/dev/null),)
@@ -152,6 +158,24 @@ $(USER_VMTEST_BIN): $(USER_VMTEST_ELF)
 $(USER_VMTEST_OBJ): $(USER_VMTEST_BIN)
 	$(LD) -m elf32lriscv -r -b binary -o $@ $<
 
+$(USER_MULTIFORKTEST_ELF): $(BUILD_DIR)/user/bin/multiforktest.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/multiforktest.o -o $@
+
+$(USER_MULTIFORKTEST_BIN): $(USER_MULTIFORKTEST_ELF)
+	$(OBJCOPY) -O binary $< $@
+
+$(USER_MULTIFORKTEST_OBJ): $(USER_MULTIFORKTEST_BIN)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
+$(USER_SCHEDTEST_ELF): $(BUILD_DIR)/user/bin/schedtest.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/schedtest.o -o $@
+
+$(USER_SCHEDTEST_BIN): $(USER_SCHEDTEST_ELF)
+	$(OBJCOPY) -O binary $< $@
+
+$(USER_SCHEDTEST_OBJ): $(USER_SCHEDTEST_BIN)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
 $(KERNEL_ELF): toolchain $(KERNEL_OBJS) kernel/linker.ld
 	$(CC) $(ARCH_FLAGS) $(LDFLAGS) $(KERNEL_OBJS) -o $@
 
@@ -165,8 +189,8 @@ test: build
 	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
 
 regression: build
-	QEMU_SMOKE_INPUT='help\nwhich echo\n/bin/echo hello\necho hello\n/bin/forktest\n/bin/vmtest\ntouch a\nls /bin\nls\necho hello > a\ncat a\ncat /README\nps\npwd\nclear\nenv\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
-	QEMU_SMOKE_EXPECT='commands:;echo;hello;forktest: child saw 0;forktest: wait reaped child;vmtest: isolation ok;forktest;vmtest;a;ZOS README;pid: 1 ppid: 0 state: running name: sh;PATH=/bin;history;lines=1 words=1 bytes=6;user: halted cleanly' \
+	QEMU_SMOKE_INPUT='help\nwhich echo\n/bin/echo hello\necho hello\n/bin/forktest\n/bin/multiforktest\n/bin/vmtest\n/bin/schedtest\ntouch a\nls /bin\nls\necho hello > a\ncat a\ncat /README\nps\npwd\nclear\nenv\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
+	QEMU_SMOKE_EXPECT='commands:;echo;hello;forktest: child saw 0;forktest: wait reaped child;multifork: wait reaped 3;multifork: ok;vmtest: isolation ok;schedtest: wait reaped 3;schedtest: ok;multiforktest;schedtest;a;ZOS README;pid: 1 ppid: 0 state: running name: sh;PATH=/bin;history;lines=1 words=1 bytes=6;user: halted cleanly' \
 	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
 
 clean:

@@ -47,6 +47,11 @@ from the in-kernel ramfs. Each process owns its own Sv32 user page table, user
 text pages, and user stack page. Kernel mappings are shared into each process
 page table.
 
-`fork` creates a child process with copied user pages. M8 still runs child work
-synchronously until the M9 scheduler lands, but parent/child memory is already
-isolated and `wait` reaps zombie children through the process table.
+`fork` creates a child process with copied user pages and places it in the
+runnable process set. Timer interrupts can switch between runnable user
+processes. `wait` reaps zombie children when one is available; otherwise it
+blocks the parent until a child exits. `exit` marks non-init processes zombie,
+wakes a waiting parent, and lets `wait` reclaim the child slot.
+
+The scheduler is intentionally simple: single hart, fixed process table, no
+copy-on-write, and no priority policy.

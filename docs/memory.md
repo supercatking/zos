@@ -52,5 +52,6 @@ script:
 - user stack page: `0x00410000..0x00411000`
 
 `fork` copies the parent user pages into child-owned physical pages. `exec`
-replaces only the calling process text image. Page freeing is still deferred;
-M9 should add process teardown and page-table reclamation.
+replaces only the calling process text image. M9 releases exited child text and
+stack pages during `wait`/parent wakeup. Full page-table page reclamation is
+still deferred to a later VM cleanup pass.

@@ -97,5 +97,20 @@ and `ps`, then returns to the same shell.
 Exit criteria: `make regression` runs `/bin/forktest` and `/bin/vmtest`, proves
 parent/child memory isolation, and still completes all shell workflows.
 
-Current limitation: M8 still executes child work synchronously. M9 should add
-preemptive/runnable process scheduling and blocking `wait`.
+## M9: Process Scheduler
+
+- Add process states for runnable, running, blocked, sleeping, and zombie tasks.
+- Put forked children into the runnable set instead of running them
+  synchronously inside `fork`.
+- Switch runnable user processes from the timer interrupt path.
+- Block parents in `wait` when children exist but no child is ready to reap.
+- Wake blocked parents from `exit` and reclaim the exited child's user pages.
+- Add scheduler-focused user tests: `/bin/multiforktest` and `/bin/schedtest`.
+
+Exit criteria: `make regression` covers `/bin/forktest`,
+`/bin/multiforktest`, `/bin/vmtest`, `/bin/schedtest`, shell workflows, and
+`ps` process reporting.
+
+Current limitation: M9 remains single-hart and still uses raw linked user
+binary images. M10 should replace raw program loading with a real RISC-V32 ELF
+loader.

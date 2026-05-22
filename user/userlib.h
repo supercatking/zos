@@ -101,3 +101,9 @@ static U_UNUSED long u_getpid(void)
 {
     return syscall3(SYS_GETPID, 0, 0, 0);
 }
+
+static U_UNUSED void u_spin(unsigned int count)
+{
+    for (volatile unsigned int i = 0; i < count; i++) {
+    }
+}
