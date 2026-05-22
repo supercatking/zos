@@ -125,3 +125,14 @@ Current status: Step 1 adds parser validation and a boot-time parser self-test.
 Step 2 loads ELF `PT_LOAD` segments during `exec` and keeps raw binary fallback
 available for compatibility. Step 3 switches the embedded `/bin/*` images and
 init shell to ELF blobs.
+
+## M11: VFS
+
+- Add a small VFS syscall layer so user file operations no longer call ramfs
+  directly.
+- Keep ramfs mounted at `/`.
+- Expose `/dev/console` as the first device path. Reads return EOF for now;
+  writes go to the serial console.
+
+Current status: Step 1 introduces the VFS wrapper and `/dev/console`. Step 2
+should move proc-style files behind dynamic VFS nodes.

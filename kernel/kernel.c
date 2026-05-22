@@ -9,6 +9,7 @@
 #include <zos/trap.h>
 #include <zos/types.h>
 #include <zos/user.h>
+#include <zos/vfs.h>
 #include <zos/vm.h>
 
 extern char __kernel_start[];
@@ -76,6 +77,7 @@ void kernel_main(uintptr_t hart_id, uintptr_t dtb)
     console_puts("vm: paging enabled\n");
     initramfs_init();
     user_register_programs();
+    vfs_init();
     elf32_self_test();
 
     trap_init();

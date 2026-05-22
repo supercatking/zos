@@ -5,6 +5,7 @@
 #include <zos/timer.h>
 #include <zos/types.h>
 #include <zos/user.h>
+#include <zos/vfs.h>
 
 #define TIMEBASE_HZ 10000000ull
 #define SLEEP_TICK_HZ 100ull
@@ -33,7 +34,7 @@ static uintptr_t sys_write(uintptr_t fd, const char *buf, uintptr_t len)
         return len;
     }
 
-    return initramfs_write((int)fd, buf, len);
+    return vfs_write((int)fd, buf, len);
 }
 
 static uintptr_t sys_read(uintptr_t fd, char *buf, uintptr_t len)
@@ -55,7 +56,7 @@ static uintptr_t sys_read(uintptr_t fd, char *buf, uintptr_t len)
         return count;
     }
 
-    return initramfs_read((int)fd, buf, len);
+    return vfs_read((int)fd, buf, len);
 }
 
 static void sys_exit(uintptr_t status, struct trap_frame *tf)
@@ -167,10 +168,10 @@ void syscall_handle(struct trap_frame *tf)
         tf->a0 = sys_read(tf->a0, (char *)tf->a1, tf->a2);
         break;
     case SYS_OPEN:
-        tf->a0 = (uintptr_t)initramfs_open((const char *)tf->a0);
+        tf->a0 = (uintptr_t)vfs_open((const char *)tf->a0);
         break;
     case SYS_CLOSE:
-        tf->a0 = (uintptr_t)initramfs_close((int)tf->a0);
+        tf->a0 = (uintptr_t)vfs_close((int)tf->a0);
         break;
     case SYS_SLEEP:
         tf->a0 = sys_sleep(tf->a0);
@@ -179,23 +180,23 @@ void syscall_handle(struct trap_frame *tf)
         tf->a0 = sys_kill(tf->a0);
         break;
     case SYS_CREATE:
-        tf->a0 = (uintptr_t)initramfs_create((const char *)tf->a0);
+        tf->a0 = (uintptr_t)vfs_create((const char *)tf->a0);
         break;
     case SYS_LIST:
-        tf->a0 = initramfs_list((const char *)tf->a2, (char *)tf->a0, tf->a1);
+        tf->a0 = vfs_list((const char *)tf->a2, (char *)tf->a0, tf->a1);
         break;
     case SYS_UNLINK:
-        tf->a0 = (uintptr_t)initramfs_unlink((const char *)tf->a0);
+        tf->a0 = (uintptr_t)vfs_unlink((const char *)tf->a0);
         break;
     case SYS_STAT:
-        tf->a0 = initramfs_stat((const char *)tf->a0, (char *)tf->a1, tf->a2);
+        tf->a0 = vfs_stat((const char *)tf->a0, (char *)tf->a1, tf->a2);
         break;
     case SYS_MKDIR:
-        tf->a0 = (uintptr_t)initramfs_mkdir((const char *)tf->a0);
+        tf->a0 = (uintptr_t)vfs_mkdir((const char *)tf->a0);
         break;
     case SYS_RENAME:
-        tf->a0 = (uintptr_t)initramfs_rename((const char *)tf->a0,
-                                             (const char *)tf->a1);
+        tf->a0 = (uintptr_t)vfs_rename((const char *)tf->a0,
+                                       (const char *)tf->a1);
         break;
     case SYS_UPTIME:
         tf->a0 = ((uintptr_t)timer_ticks()) / TIMER_HZ;
