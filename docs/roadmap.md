@@ -171,4 +171,6 @@ Current status: Step 1 defines the on-disk structs and constants. Step 2 adds
 
 Current status: Step 1 expands libc-lite and migrates `/bin/cat` onto the shared
 file-copy helper. Step 2 adds standalone `/bin/pwd`, `/bin/stat`, `/bin/grep`,
-`/bin/wc`, `/bin/true`, and `/bin/false`. Step 3 should add GitHub Actions CI.
+`/bin/wc`, `/bin/true`, and `/bin/false`. Step 3 adds GitHub Actions CI for
+toolchain installation, kernel build, QEMU regression, disk image creation, and
+a virtio-backed `/disk` smoke test.
