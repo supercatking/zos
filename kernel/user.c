@@ -28,7 +28,10 @@ static char current_program[32];
 
 enum proc_state {
     PROC_UNUSED = 0,
+    PROC_RUNNABLE,
     PROC_RUNNING,
+    PROC_SLEEPING,
+    PROC_BLOCKED,
     PROC_ZOMBIE,
 };
 
@@ -40,7 +43,10 @@ struct proc {
     pagetable_t pagetable;
     void *text_pages[USER_TEXT_PAGES];
     void *stack_page;
+    uint8_t kernel_stack[PAGE_SIZE];
+    struct trap_frame tf;
     struct trap_frame parent_tf;
+    int waiting;
 };
 
 static struct proc procs[8];
@@ -51,8 +57,14 @@ static int next_pid = 2;
 static const char *proc_state_name(enum proc_state state)
 {
     switch (state) {
+    case PROC_RUNNABLE:
+        return "runnable";
     case PROC_RUNNING:
         return "running";
+    case PROC_SLEEPING:
+        return "sleeping";
+    case PROC_BLOCKED:
+        return "blocked";
     case PROC_ZOMBIE:
         return "zombie";
     case PROC_UNUSED:
@@ -253,6 +265,7 @@ void user_init(void)
     init->ppid = 0;
     init->exit_status = 0;
     init->state = PROC_RUNNING;
+    init->waiting = 0;
     if (proc_alloc_address_space(init) != 0) {
         PANIC("user: init address space failed");
     }
@@ -305,6 +318,7 @@ int user_fork(struct trap_frame *tf)
             procs[i].ppid = current_pid;
             procs[i].exit_status = 0;
             procs[i].state = PROC_RUNNING;
+            procs[i].waiting = 0;
             if (proc_alloc_address_space(&procs[i]) != 0) {
                 procs[i].state = PROC_UNUSED;
                 return -1;
