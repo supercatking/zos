@@ -63,6 +63,7 @@ KERNEL_SRCS := \
 	kernel/elf.c \
 	kernel/vfs.c \
 	kernel/virtio.c \
+	kernel/block.c \
 	kernel/syscall.c \
 	kernel/trap.c \
 	kernel/user.c \

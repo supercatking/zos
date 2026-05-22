@@ -35,6 +35,7 @@
 #define VIRTQ_DESC_F_WRITE 2u
 
 #define VIRTIO_BLK_T_IN 0u
+#define VIRTIO_BLK_T_OUT 1u
 
 struct virtq_desc {
     uint64_t addr;
@@ -201,7 +202,7 @@ static int virtio_blk_init_queue(void)
     return 0;
 }
 
-int virtio_blk_read_sector(uint64_t sector, void *buf)
+static int virtio_blk_rw_sector(uint64_t sector, void *buf, int write)
 {
     uint16_t avail_idx;
     uint16_t used_idx;
@@ -210,7 +211,7 @@ int virtio_blk_read_sector(uint64_t sector, void *buf)
         return -1;
     }
 
-    blk_req.type = VIRTIO_BLK_T_IN;
+    blk_req.type = write ? VIRTIO_BLK_T_OUT : VIRTIO_BLK_T_IN;
     blk_req.reserved = 0;
     blk_req.sector = sector;
     blk_status = 0xffu;
@@ -222,7 +223,8 @@ int virtio_blk_read_sector(uint64_t sector, void *buf)
 
     blk_desc[1].addr = (uint64_t)(uintptr_t)buf;
     blk_desc[1].len = VIRTIO_BLK_SECTOR_SIZE;
-    blk_desc[1].flags = VIRTQ_DESC_F_NEXT | VIRTQ_DESC_F_WRITE;
+    blk_desc[1].flags = write ? VIRTQ_DESC_F_NEXT :
+                                 (VIRTQ_DESC_F_NEXT | VIRTQ_DESC_F_WRITE);
     blk_desc[1].next = 2;
 
     blk_desc[2].addr = (uint64_t)(uintptr_t)&blk_status;
@@ -248,4 +250,14 @@ int virtio_blk_read_sector(uint64_t sector, void *buf)
     }
 
     return blk_status == 0 ? 0 : -1;
+}
+
+int virtio_blk_read_sector(uint64_t sector, void *buf)
+{
+    return virtio_blk_rw_sector(sector, buf, 0);
+}
+
+int virtio_blk_write_sector(uint64_t sector, const void *buf)
+{
+    return virtio_blk_rw_sector(sector, (void *)buf, 1);
 }

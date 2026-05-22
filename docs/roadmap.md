@@ -148,4 +148,5 @@ so `ps` reads `/proc/status`.
 Current status: Step 1 detects virtio-mmio transports and reports
 `virtio-blk: found` or `virtio-blk: not found`. Step 2 initializes a legacy
 virtio-mmio block queue and performs a synchronous sector 0 read when a disk is
-attached.
+attached. Step 3 adds a one-sector block cache and exposes `block_read_sector`
+and `block_write_sector` for the future disk filesystem.
