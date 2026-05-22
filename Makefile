@@ -7,6 +7,7 @@ USER_SHELL_OBJ := $(BUILD_DIR)/user/shell_bin.o
 USER_ECHO_ELF := $(BUILD_DIR)/user/bin/echo.elf
 USER_ECHO_BIN := $(BUILD_DIR)/user/bin/echo.bin
 USER_ECHO_OBJ := $(BUILD_DIR)/user/bin/echo_bin.o
+USER_ECHO_ELF_OBJ := $(BUILD_DIR)/user/bin/echo_elf.o
 USER_CAT_ELF := $(BUILD_DIR)/user/bin/cat.elf
 USER_CAT_BIN := $(BUILD_DIR)/user/bin/cat.bin
 USER_CAT_OBJ := $(BUILD_DIR)/user/bin/cat_bin.o
@@ -28,7 +29,7 @@ USER_MULTIFORKTEST_OBJ := $(BUILD_DIR)/user/bin/multiforktest_bin.o
 USER_SCHEDTEST_ELF := $(BUILD_DIR)/user/bin/schedtest.elf
 USER_SCHEDTEST_BIN := $(BUILD_DIR)/user/bin/schedtest.bin
 USER_SCHEDTEST_OBJ := $(BUILD_DIR)/user/bin/schedtest_bin.o
-USER_PROGRAM_OBJS := $(USER_SHELL_OBJ) $(USER_ECHO_OBJ) $(USER_CAT_OBJ) $(USER_LS_OBJ) $(USER_HELP_OBJ) $(USER_FORKTEST_OBJ) $(USER_VMTEST_OBJ) $(USER_MULTIFORKTEST_OBJ) $(USER_SCHEDTEST_OBJ)
+USER_PROGRAM_OBJS := $(USER_SHELL_OBJ) $(USER_ECHO_OBJ) $(USER_ECHO_ELF_OBJ) $(USER_CAT_OBJ) $(USER_LS_OBJ) $(USER_HELP_OBJ) $(USER_FORKTEST_OBJ) $(USER_VMTEST_OBJ) $(USER_MULTIFORKTEST_OBJ) $(USER_SCHEDTEST_OBJ)
 OPENSBI_RV32 := /usr/lib/riscv32-linux-gnu/opensbi/generic/fw_dynamic.bin
 
 ifneq ($(shell command -v riscv64-unknown-elf-gcc 2>/dev/null),)
@@ -114,6 +115,9 @@ $(USER_ECHO_BIN): $(USER_ECHO_ELF)
 $(USER_ECHO_OBJ): $(USER_ECHO_BIN)
 	$(LD) -m elf32lriscv -r -b binary -o $@ $<
 
+$(USER_ECHO_ELF_OBJ): $(USER_ECHO_ELF)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
 $(USER_CAT_ELF): $(BUILD_DIR)/user/bin/cat.o user/linker.ld
 	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/cat.o -o $@
 
@@ -190,8 +194,8 @@ test: build
 	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
 
 regression: build
-	QEMU_SMOKE_INPUT='help\nwhich echo\n/bin/echo hello\necho hello\n/bin/forktest\n/bin/multiforktest\n/bin/vmtest\n/bin/schedtest\ntouch a\nls /bin\nls\necho hello > a\ncat a\ncat /README\nps\npwd\nclear\nenv\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
-	QEMU_SMOKE_EXPECT='commands:;echo;hello;forktest: child saw 0;forktest: wait reaped child;multifork: wait reaped 3;multifork: ok;vmtest: isolation ok;schedtest: wait reaped 3;schedtest: ok;multiforktest;schedtest;a;ZOS README;pid: 1 ppid: 0 state: running name: sh;PATH=/bin;history;lines=1 words=1 bytes=6;user: halted cleanly' \
+	QEMU_SMOKE_INPUT='help\nwhich echo\n/bin/echo hello\n/bin/elfecho hello\necho hello\n/bin/forktest\n/bin/multiforktest\n/bin/vmtest\n/bin/schedtest\ntouch a\nls /bin\nls\necho hello > a\ncat a\ncat /README\nps\npwd\nclear\nenv\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
+	QEMU_SMOKE_EXPECT='commands:;echo;hello;elfecho;forktest: child saw 0;forktest: wait reaped child;multifork: wait reaped 3;multifork: ok;vmtest: isolation ok;schedtest: wait reaped 3;schedtest: ok;multiforktest;schedtest;a;ZOS README;pid: 1 ppid: 0 state: running name: sh;PATH=/bin;history;lines=1 words=1 bytes=6;user: halted cleanly' \
 	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
 
 clean:

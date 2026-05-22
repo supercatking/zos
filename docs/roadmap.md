@@ -122,4 +122,5 @@ loader.
 - Keep raw binary execution active until segment loading is wired into `exec`.
 
 Current status: Step 1 adds parser validation and a boot-time parser self-test.
-Step 2 should load ELF `PT_LOAD` segments into user pages during `exec`.
+Step 2 loads ELF `PT_LOAD` segments during `exec` and keeps raw binary fallback
+active until the full `/bin/*` switch is complete.

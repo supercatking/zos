@@ -1,4 +1,5 @@
 #include <zos/console.h>
+#include <zos/elf.h>
 #include <zos/initramfs.h>
 #include <zos/memlayout.h>
 #include <zos/panic.h>
@@ -12,6 +13,8 @@ extern char _binary_build_user_shell_bin_start[];
 extern char _binary_build_user_shell_bin_end[];
 extern char _binary_build_user_bin_echo_bin_start[];
 extern char _binary_build_user_bin_echo_bin_end[];
+extern char _binary_build_user_bin_echo_elf_start[];
+extern char _binary_build_user_bin_echo_elf_end[];
 extern char _binary_build_user_bin_cat_bin_start[];
 extern char _binary_build_user_bin_cat_bin_end[];
 extern char _binary_build_user_bin_ls_bin_start[];
@@ -163,6 +166,8 @@ void user_register_programs(void)
                 _binary_build_user_shell_bin_end);
     add_program("/bin/echo", _binary_build_user_bin_echo_bin_start,
                 _binary_build_user_bin_echo_bin_end);
+    add_program("/bin/elfecho", _binary_build_user_bin_echo_elf_start,
+                _binary_build_user_bin_echo_elf_end);
     add_program("/bin/cat", _binary_build_user_bin_cat_bin_start,
                 _binary_build_user_bin_cat_bin_end);
     add_program("/bin/ls", _binary_build_user_bin_ls_bin_start,
@@ -261,6 +266,82 @@ static void proc_load_image(struct proc *proc, const char *image, size_t image_s
             copy_bytes(proc->text_pages[i], image + offset, copy_len);
         }
     }
+}
+
+static void proc_zero_text(struct proc *proc)
+{
+    for (size_t i = 0; i < USER_TEXT_PAGES; i++) {
+        zero_page(proc->text_pages[i]);
+    }
+}
+
+static int proc_copy_to_user_text(struct proc *proc, uintptr_t va,
+                                  const char *src, size_t len)
+{
+    uintptr_t end = va + len;
+
+    if (end < va || va < USER_TEXT_BASE || end > USER_STACK_BASE) {
+        return -1;
+    }
+
+    while (len != 0) {
+        uintptr_t offset = va - USER_TEXT_BASE;
+        size_t page_index = offset / PAGE_SIZE;
+        size_t page_offset = offset % PAGE_SIZE;
+        size_t chunk = PAGE_SIZE - page_offset;
+
+        if (page_index >= USER_TEXT_PAGES || proc->text_pages[page_index] == 0) {
+            return -1;
+        }
+
+        if (chunk > len) {
+            chunk = len;
+        }
+        copy_bytes((char *)proc->text_pages[page_index] + page_offset, src, chunk);
+        va += chunk;
+        src += chunk;
+        len -= chunk;
+    }
+
+    return 0;
+}
+
+static int proc_load_elf(struct proc *proc, const char *image, size_t image_size,
+                         uintptr_t *entry)
+{
+    struct elf32_image parsed;
+
+    if (elf32_parse(image, image_size, &parsed) != 0 ||
+        parsed.entry < USER_TEXT_BASE || parsed.entry >= USER_STACK_BASE) {
+        return -1;
+    }
+
+    proc_zero_text(proc);
+    for (uint16_t i = 0;; i++) {
+        struct elf32_segment segment;
+        uintptr_t end;
+
+        if (elf32_load_segment(image, image_size, i, &segment) != 0) {
+            break;
+        }
+
+        end = segment.vaddr + segment.memsz;
+        if (end < segment.vaddr ||
+            segment.vaddr < USER_TEXT_BASE ||
+            end > USER_STACK_BASE ||
+            segment.align < PAGE_SIZE ||
+            (segment.vaddr & (PAGE_SIZE - 1u)) != (segment.offset & (PAGE_SIZE - 1u))) {
+            return -1;
+        }
+
+        if (proc_copy_to_user_text(proc, segment.vaddr,
+                                   image + segment.offset, segment.filesz) != 0) {
+            return -1;
+        }
+    }
+
+    *entry = parsed.entry;
+    return 0;
 }
 
 static void proc_release_user_pages(struct proc *proc)
@@ -492,6 +573,7 @@ int user_exec(const char *path, const char *arg, struct trap_frame *tf)
     uintptr_t image_size = 0;
     const char *image = initramfs_data(path, &image_size);
     size_t image_pages = (image_size + PAGE_SIZE - 1u) / PAGE_SIZE;
+    uintptr_t entry = USER_TEXT_BASE;
     uintptr_t arg_base = USER_ARG_BASE;
     uintptr_t stack_top = USER_STACK_TOP;
     char *arg_dst = (char *)arg_base;
@@ -501,7 +583,10 @@ int user_exec(const char *path, const char *arg, struct trap_frame *tf)
         return -1;
     }
 
-    proc_load_image(current_proc, image, image_size);
+    if (proc_load_elf(current_proc, image, image_size, &entry) != 0) {
+        proc_load_image(current_proc, image, image_size);
+        entry = USER_TEXT_BASE;
+    }
     copy_string(current_proc->program, path, sizeof(current_proc->program));
 
     if (arg != 0) {
@@ -512,7 +597,7 @@ int user_exec(const char *path, const char *arg, struct trap_frame *tf)
         tf->a0 = arg_base;
     }
 
-    tf->sepc = USER_TEXT_BASE;
+    tf->sepc = entry;
     tf->sp = stack_top;
     __asm__ volatile("sfence.vma" ::: "memory");
     return 0;
