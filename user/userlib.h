@@ -8,6 +8,7 @@ typedef unsigned int size_t;
 #define SYS_READ 3u
 #define SYS_OPEN 4u
 #define SYS_CLOSE 5u
+#define SYS_CREATE 8u
 #define SYS_LIST 9u
 #define SYS_EXEC 16u
 #define SYS_FORK 17u
@@ -50,14 +51,75 @@ static U_UNUSED int u_streq(const char *a, const char *b)
     return *a == *b;
 }
 
+static U_UNUSED int u_starts_with(const char *s, const char *prefix)
+{
+    while (*prefix != '\0') {
+        if (*s != *prefix) {
+            return 0;
+        }
+        s++;
+        prefix++;
+    }
+    return 1;
+}
+
+static U_UNUSED void u_copy_string(char *dst, const char *src, size_t max_len)
+{
+    size_t i = 0;
+
+    if (max_len == 0) {
+        return;
+    }
+
+    while (i + 1u < max_len && src[i] != '\0') {
+        dst[i] = src[i];
+        i++;
+    }
+    dst[i] = '\0';
+}
+
+static U_UNUSED void u_memset(void *ptr, int value, size_t len)
+{
+    unsigned char *p = (unsigned char *)ptr;
+
+    for (size_t i = 0; i < len; i++) {
+        p[i] = (unsigned char)value;
+    }
+}
+
 static U_UNUSED void u_write(const char *s)
 {
     (void)syscall3(SYS_WRITE, 1, (uintptr_t)s, u_strlen(s));
 }
 
+static U_UNUSED long u_write_fd(int fd, const char *s, size_t len)
+{
+    return syscall3(SYS_WRITE, (uintptr_t)fd, (uintptr_t)s, len);
+}
+
 static U_UNUSED void u_write_buf(const char *s, size_t len)
 {
     (void)syscall3(SYS_WRITE, 1, (uintptr_t)s, len);
+}
+
+static U_UNUSED void u_put_uint(uintptr_t value)
+{
+    char tmp[10];
+    uintptr_t n = 0;
+
+    if (value == 0) {
+        u_write("0");
+        return;
+    }
+
+    while (value != 0 && n < sizeof(tmp)) {
+        tmp[n++] = (char)('0' + value % 10u);
+        value /= 10u;
+    }
+    while (n != 0) {
+        char ch = tmp[--n];
+        u_write_buf(&ch, 1);
+    }
 }
 
 static U_UNUSED void u_exit(int status)
@@ -70,6 +132,11 @@ static U_UNUSED void u_exit(int status)
 static U_UNUSED int u_open(const char *path)
 {
     return (int)syscall3(SYS_OPEN, (uintptr_t)path, 0, 0);
+}
+
+static U_UNUSED int u_create(const char *path)
+{
+    return (int)syscall3(SYS_CREATE, (uintptr_t)path, 0, 0);
 }
 
 static U_UNUSED long u_read(int fd, char *buf, size_t len)
@@ -85,6 +152,25 @@ static U_UNUSED void u_close(int fd)
 static U_UNUSED long u_list(const char *path, char *buf, size_t len)
 {
     return syscall3(SYS_LIST, (uintptr_t)buf, len, (uintptr_t)path);
+}
+
+static U_UNUSED int u_copy_file_to_stdout(const char *path)
+{
+    char buf[128];
+    int fd = u_open(path);
+
+    if (fd < 0) {
+        return -1;
+    }
+    for (;;) {
+        long n = u_read(fd, buf, sizeof(buf));
+        if (n <= 0) {
+            break;
+        }
+        u_write_buf(buf, (size_t)n);
+    }
+    u_close(fd);
+    return 0;
 }
 
 static U_UNUSED long u_fork(void)

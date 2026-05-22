@@ -163,3 +163,12 @@ Current status: Step 1 defines the on-disk structs and constants. Step 2 adds
 `scripts/mkfs_zos.py` and `make disk-image`, which creates a disk image with
 `/README`. Step 3 mounts the image at `/disk` and supports
 `ls/cat/touch/echo > file` for one-block files.
+
+## M14: Userland and Quality
+
+- Grow `user/userlib.h` into a libc-lite layer with common syscall wrappers,
+  string helpers, output helpers, and file-copy helpers.
+
+Current status: Step 1 expands libc-lite and migrates `/bin/cat` onto the shared
+file-copy helper. Step 2 should move more shell commands into standalone
+`/bin/*` programs. Step 3 should add GitHub Actions CI.
