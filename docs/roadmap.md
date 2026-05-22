@@ -114,3 +114,12 @@ Exit criteria: `make regression` covers `/bin/forktest`,
 Current limitation: M9 remains single-hart and still uses raw linked user
 binary images. M10 should replace raw program loading with a real RISC-V32 ELF
 loader.
+
+## M10: ELF Loader
+
+- Add a minimal RV32 little-endian ELF parser for executable images and
+  loadable program headers.
+- Keep raw binary execution active until segment loading is wired into `exec`.
+
+Current status: Step 1 adds parser validation and a boot-time parser self-test.
+Step 2 should load ELF `PT_LOAD` segments into user pages during `exec`.

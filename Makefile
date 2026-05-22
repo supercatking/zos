@@ -60,6 +60,7 @@ KERNEL_SRCS := \
 	kernel/thread.c \
 	kernel/pmm.c \
 	kernel/switch.S \
+	kernel/elf.c \
 	kernel/syscall.c \
 	kernel/trap.c \
 	kernel/user.c \

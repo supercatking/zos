@@ -1,5 +1,6 @@
 #include <zos/assert.h>
 #include <zos/console.h>
+#include <zos/elf.h>
 #include <zos/initramfs.h>
 #include <zos/pmm.h>
 #include <zos/riscv.h>
@@ -75,6 +76,7 @@ void kernel_main(uintptr_t hart_id, uintptr_t dtb)
     console_puts("vm: paging enabled\n");
     initramfs_init();
     user_register_programs();
+    elf32_self_test();
 
     trap_init();
     console_puts("trap: initialized\n");
