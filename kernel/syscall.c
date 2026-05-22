@@ -1,6 +1,4 @@
 #include <zos/console.h>
-#include <zos/initramfs.h>
-#include <zos/pmm.h>
 #include <zos/syscall.h>
 #include <zos/timer.h>
 #include <zos/types.h>
@@ -107,48 +105,17 @@ static uintptr_t sys_kill(uintptr_t pid)
     return (uintptr_t)-1;
 }
 
-static uintptr_t write_uint(char *buf, uintptr_t out, uintptr_t len, uintptr_t value)
-{
-    char tmp[10];
-    uintptr_t n = 0;
-
-    if (value == 0) {
-        if (out < len) {
-            buf[out++] = '0';
-        }
-        return out;
-    }
-
-    while (value != 0 && n < sizeof(tmp)) {
-        tmp[n++] = (char)('0' + (value % 10u));
-        value /= 10u;
-    }
-    while (n != 0 && out < len) {
-        buf[out++] = tmp[--n];
-    }
-    return out;
-}
-
-static uintptr_t write_str(char *buf, uintptr_t out, uintptr_t len, const char *s)
-{
-    for (uintptr_t i = 0; s[i] != '\0' && out < len; i++) {
-        buf[out++] = s[i];
-    }
-    return out;
-}
-
 static uintptr_t sys_meminfo(char *buf, uintptr_t len)
 {
-    uintptr_t out = 0;
+    int fd = vfs_open("/proc/meminfo");
+    uintptr_t n;
 
-    out = write_str(buf, out, len, "mem total_pages=");
-    out = write_uint(buf, out, len, pmm_total_pages());
-    out = write_str(buf, out, len, " free_pages=");
-    out = write_uint(buf, out, len, pmm_free_pages());
-    if (out < len) {
-        buf[out++] = '\n';
+    if (fd < 0) {
+        return (uintptr_t)-1;
     }
-    return out;
+    n = vfs_read(fd, buf, len);
+    (void)vfs_close(fd);
+    return n;
 }
 
 void syscall_handle(struct trap_frame *tf)

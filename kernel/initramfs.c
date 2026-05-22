@@ -25,11 +25,6 @@ static const char readme[] =
     "ZOS README\n"
     "A tiny RISC-V32 teaching OS with a user-mode shell.\n";
 
-static const char proc_status[] =
-    "pid: 1\n"
-    "name: sh\n"
-    "state: running\n";
-
 static struct initramfs_file files[RAMFS_MAX_FILES];
 static struct open_file open_files[INITRAMFS_MAX_OPEN];
 
@@ -160,7 +155,6 @@ void initramfs_init(void)
     }
 
     (void)initramfs_add_static_file("/README", readme, sizeof(readme) - 1u);
-    (void)initramfs_add_static_file("/proc/status", proc_status, sizeof(proc_status) - 1u);
     console_puts("initramfs: ready\n");
 }
 

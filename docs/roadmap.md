@@ -135,4 +135,5 @@ init shell to ELF blobs.
   writes go to the serial console.
 
 Current status: Step 1 introduces the VFS wrapper and `/dev/console`. Step 2
-should move proc-style files behind dynamic VFS nodes.
+moves proc-style files behind dynamic VFS nodes: `/proc/status`,
+`/proc/meminfo`, `/proc/uptime`, and `/proc/<pid>`.
