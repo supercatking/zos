@@ -136,4 +136,5 @@ init shell to ELF blobs.
 
 Current status: Step 1 introduces the VFS wrapper and `/dev/console`. Step 2
 moves proc-style files behind dynamic VFS nodes: `/proc/status`,
-`/proc/meminfo`, `/proc/uptime`, and `/proc/<pid>`.
+`/proc/meminfo`, `/proc/uptime`, and `/proc/<pid>`. Step 3 adapts user tools
+so `ps` reads `/proc/status`.

@@ -125,11 +125,6 @@ static long sys_wait(void)
     return syscall3(SYS_WAIT, 0, 0, 0);
 }
 
-static long sys_procinfo(char *buf, size_t len)
-{
-    return syscall3(SYS_PROCINFO, (uintptr_t)buf, len, 0);
-}
-
 static void sys_exit(int status)
 {
     (void)syscall3(SYS_EXIT, (uintptr_t)status, 0, 0);
@@ -370,12 +365,22 @@ static int cmd_ps(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
-    char buf[160];
-    long n = sys_procinfo(buf, sizeof(buf));
+    char buf[96];
+    long fd = sys_open("/proc/status");
 
-    if (n > 0) {
+    if (fd < 0) {
+        puts("ps: proc unavailable\n");
+        return -1;
+    }
+
+    for (;;) {
+        long n = sys_read((int)fd, buf, sizeof(buf));
+        if (n <= 0) {
+            break;
+        }
         (void)sys_write(1, buf, (size_t)n);
     }
+    (void)sys_close((int)fd);
     return 0;
 }
 

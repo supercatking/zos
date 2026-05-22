@@ -38,7 +38,9 @@ The trap handler advances `sepc` by 4 before returning from handled syscalls.
 
 Fd `0` reads from the serial terminal. Fd `1` and `2` write to the serial
 terminal. File descriptors from `3` upward refer to ramfs files and support
-`read`, `write`, and `close`.
+`read`, `write`, and `close`. M11 routes file syscalls through the VFS layer:
+ramfs is mounted at `/`, `/dev/console` is a console device node, and `/proc/*`
+nodes are generated dynamically.
 
 ## Current User Program
 
