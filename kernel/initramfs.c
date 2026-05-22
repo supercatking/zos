@@ -2,7 +2,7 @@
 #include <zos/initramfs.h>
 
 #define INITRAMFS_MAX_OPEN 4
-#define RAMFS_MAX_FILES 16
+#define RAMFS_MAX_FILES 32
 #define RAMFS_NAME_MAX 32
 #define RAMFS_DATA_MAX 256
 

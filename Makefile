@@ -28,7 +28,19 @@ USER_MULTIFORKTEST_OBJ := $(BUILD_DIR)/user/bin/multiforktest_elf.o
 USER_SCHEDTEST_ELF := $(BUILD_DIR)/user/bin/schedtest.elf
 USER_SCHEDTEST_BIN := $(BUILD_DIR)/user/bin/schedtest.bin
 USER_SCHEDTEST_OBJ := $(BUILD_DIR)/user/bin/schedtest_elf.o
-USER_PROGRAM_OBJS := $(USER_SHELL_OBJ) $(USER_ECHO_OBJ) $(USER_CAT_OBJ) $(USER_LS_OBJ) $(USER_HELP_OBJ) $(USER_FORKTEST_OBJ) $(USER_VMTEST_OBJ) $(USER_MULTIFORKTEST_OBJ) $(USER_SCHEDTEST_OBJ)
+USER_PWD_ELF := $(BUILD_DIR)/user/bin/pwd.elf
+USER_PWD_OBJ := $(BUILD_DIR)/user/bin/pwd_elf.o
+USER_STAT_ELF := $(BUILD_DIR)/user/bin/stat.elf
+USER_STAT_OBJ := $(BUILD_DIR)/user/bin/stat_elf.o
+USER_GREP_ELF := $(BUILD_DIR)/user/bin/grep.elf
+USER_GREP_OBJ := $(BUILD_DIR)/user/bin/grep_elf.o
+USER_WC_ELF := $(BUILD_DIR)/user/bin/wc.elf
+USER_WC_OBJ := $(BUILD_DIR)/user/bin/wc_elf.o
+USER_TRUE_ELF := $(BUILD_DIR)/user/bin/true.elf
+USER_TRUE_OBJ := $(BUILD_DIR)/user/bin/true_elf.o
+USER_FALSE_ELF := $(BUILD_DIR)/user/bin/false.elf
+USER_FALSE_OBJ := $(BUILD_DIR)/user/bin/false_elf.o
+USER_PROGRAM_OBJS := $(USER_SHELL_OBJ) $(USER_ECHO_OBJ) $(USER_CAT_OBJ) $(USER_LS_OBJ) $(USER_HELP_OBJ) $(USER_FORKTEST_OBJ) $(USER_VMTEST_OBJ) $(USER_MULTIFORKTEST_OBJ) $(USER_SCHEDTEST_OBJ) $(USER_PWD_OBJ) $(USER_STAT_OBJ) $(USER_GREP_OBJ) $(USER_WC_OBJ) $(USER_TRUE_OBJ) $(USER_FALSE_OBJ)
 OPENSBI_RV32 := /usr/lib/riscv32-linux-gnu/opensbi/generic/fw_dynamic.bin
 
 ifneq ($(shell command -v riscv64-unknown-elf-gcc 2>/dev/null),)
@@ -179,6 +191,42 @@ $(USER_SCHEDTEST_BIN): $(USER_SCHEDTEST_ELF)
 	$(OBJCOPY) -O binary $< $@
 
 $(USER_SCHEDTEST_OBJ): $(USER_SCHEDTEST_ELF)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
+$(USER_PWD_ELF): $(BUILD_DIR)/user/bin/pwd.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/pwd.o -o $@
+
+$(USER_PWD_OBJ): $(USER_PWD_ELF)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
+$(USER_STAT_ELF): $(BUILD_DIR)/user/bin/stat.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/stat.o -o $@
+
+$(USER_STAT_OBJ): $(USER_STAT_ELF)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
+$(USER_GREP_ELF): $(BUILD_DIR)/user/bin/grep.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/grep.o -o $@
+
+$(USER_GREP_OBJ): $(USER_GREP_ELF)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
+$(USER_WC_ELF): $(BUILD_DIR)/user/bin/wc.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/wc.o -o $@
+
+$(USER_WC_OBJ): $(USER_WC_ELF)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
+$(USER_TRUE_ELF): $(BUILD_DIR)/user/bin/true.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/true.o -o $@
+
+$(USER_TRUE_OBJ): $(USER_TRUE_ELF)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
+$(USER_FALSE_ELF): $(BUILD_DIR)/user/bin/false.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/false.o -o $@
+
+$(USER_FALSE_OBJ): $(USER_FALSE_ELF)
 	$(LD) -m elf32lriscv -r -b binary -o $@ $<
 
 $(KERNEL_ELF): toolchain $(KERNEL_OBJS) kernel/linker.ld

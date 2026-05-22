@@ -27,6 +27,18 @@ extern char _binary_build_user_bin_multiforktest_elf_start[];
 extern char _binary_build_user_bin_multiforktest_elf_end[];
 extern char _binary_build_user_bin_schedtest_elf_start[];
 extern char _binary_build_user_bin_schedtest_elf_end[];
+extern char _binary_build_user_bin_pwd_elf_start[];
+extern char _binary_build_user_bin_pwd_elf_end[];
+extern char _binary_build_user_bin_stat_elf_start[];
+extern char _binary_build_user_bin_stat_elf_end[];
+extern char _binary_build_user_bin_grep_elf_start[];
+extern char _binary_build_user_bin_grep_elf_end[];
+extern char _binary_build_user_bin_wc_elf_start[];
+extern char _binary_build_user_bin_wc_elf_end[];
+extern char _binary_build_user_bin_true_elf_start[];
+extern char _binary_build_user_bin_true_elf_end[];
+extern char _binary_build_user_bin_false_elf_start[];
+extern char _binary_build_user_bin_false_elf_end[];
 
 static size_t current_text_pages;
 static uintptr_t init_entry = USER_TEXT_BASE;
@@ -179,6 +191,18 @@ void user_register_programs(void)
                 _binary_build_user_bin_multiforktest_elf_end);
     add_program("/bin/schedtest", _binary_build_user_bin_schedtest_elf_start,
                 _binary_build_user_bin_schedtest_elf_end);
+    add_program("/bin/pwd", _binary_build_user_bin_pwd_elf_start,
+                _binary_build_user_bin_pwd_elf_end);
+    add_program("/bin/stat", _binary_build_user_bin_stat_elf_start,
+                _binary_build_user_bin_stat_elf_end);
+    add_program("/bin/grep", _binary_build_user_bin_grep_elf_start,
+                _binary_build_user_bin_grep_elf_end);
+    add_program("/bin/wc", _binary_build_user_bin_wc_elf_start,
+                _binary_build_user_bin_wc_elf_end);
+    add_program("/bin/true", _binary_build_user_bin_true_elf_start,
+                _binary_build_user_bin_true_elf_end);
+    add_program("/bin/false", _binary_build_user_bin_false_elf_start,
+                _binary_build_user_bin_false_elf_end);
 }
 
 static void copy_bytes(void *dst, const void *src, size_t len)

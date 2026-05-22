@@ -10,6 +10,7 @@ typedef unsigned int size_t;
 #define SYS_CLOSE 5u
 #define SYS_CREATE 8u
 #define SYS_LIST 9u
+#define SYS_STAT 11u
 #define SYS_EXEC 16u
 #define SYS_FORK 17u
 #define SYS_WAIT 18u
@@ -152,6 +153,11 @@ static U_UNUSED void u_close(int fd)
 static U_UNUSED long u_list(const char *path, char *buf, size_t len)
 {
     return syscall3(SYS_LIST, (uintptr_t)buf, len, (uintptr_t)path);
+}
+
+static U_UNUSED long u_stat(const char *path, char *buf, size_t len)
+{
+    return syscall3(SYS_STAT, (uintptr_t)path, (uintptr_t)buf, len);
 }
 
 static U_UNUSED int u_copy_file_to_stdout(const char *path)

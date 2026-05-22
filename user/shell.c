@@ -724,6 +724,11 @@ static int should_exec_external(int argc, char **argv)
         streq(argv[0], "cat")) {
         return 1;
     }
+    if (streq(argv[0], "pwd") || streq(argv[0], "stat") ||
+        streq(argv[0], "grep") || streq(argv[0], "wc") ||
+        streq(argv[0], "true") || streq(argv[0], "false")) {
+        return 1;
+    }
     if (streq(argv[0], "echo") && !has_redirect(argc, argv)) {
         return 1;
     }

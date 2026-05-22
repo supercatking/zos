@@ -170,5 +170,5 @@ Current status: Step 1 defines the on-disk structs and constants. Step 2 adds
   string helpers, output helpers, and file-copy helpers.
 
 Current status: Step 1 expands libc-lite and migrates `/bin/cat` onto the shared
-file-copy helper. Step 2 should move more shell commands into standalone
-`/bin/*` programs. Step 3 should add GitHub Actions CI.
+file-copy helper. Step 2 adds standalone `/bin/pwd`, `/bin/stat`, `/bin/grep`,
+`/bin/wc`, `/bin/true`, and `/bin/false`. Step 3 should add GitHub Actions CI.
