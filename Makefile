@@ -42,7 +42,9 @@ USER_FALSE_ELF := $(BUILD_DIR)/user/bin/false.elf
 USER_FALSE_OBJ := $(BUILD_DIR)/user/bin/false_elf.o
 USER_MALLOCTEST_ELF := $(BUILD_DIR)/user/bin/malloctest.elf
 USER_MALLOCTEST_OBJ := $(BUILD_DIR)/user/bin/malloctest_elf.o
-USER_PROGRAM_OBJS := $(USER_SHELL_OBJ) $(USER_ECHO_OBJ) $(USER_CAT_OBJ) $(USER_LS_OBJ) $(USER_HELP_OBJ) $(USER_FORKTEST_OBJ) $(USER_VMTEST_OBJ) $(USER_MULTIFORKTEST_OBJ) $(USER_SCHEDTEST_OBJ) $(USER_PWD_OBJ) $(USER_STAT_OBJ) $(USER_GREP_OBJ) $(USER_WC_OBJ) $(USER_TRUE_OBJ) $(USER_FALSE_OBJ) $(USER_MALLOCTEST_OBJ)
+USER_BADTEST_ELF := $(BUILD_DIR)/user/bin/badtest.elf
+USER_BADTEST_OBJ := $(BUILD_DIR)/user/bin/badtest_elf.o
+USER_PROGRAM_OBJS := $(USER_SHELL_OBJ) $(USER_ECHO_OBJ) $(USER_CAT_OBJ) $(USER_LS_OBJ) $(USER_HELP_OBJ) $(USER_FORKTEST_OBJ) $(USER_VMTEST_OBJ) $(USER_MULTIFORKTEST_OBJ) $(USER_SCHEDTEST_OBJ) $(USER_PWD_OBJ) $(USER_STAT_OBJ) $(USER_GREP_OBJ) $(USER_WC_OBJ) $(USER_TRUE_OBJ) $(USER_FALSE_OBJ) $(USER_MALLOCTEST_OBJ) $(USER_BADTEST_OBJ)
 OPENSBI_RV32 := /usr/lib/riscv32-linux-gnu/opensbi/generic/fw_dynamic.bin
 
 ifneq ($(shell command -v riscv64-unknown-elf-gcc 2>/dev/null),)
@@ -238,6 +240,12 @@ $(USER_MALLOCTEST_ELF): $(BUILD_DIR)/user/bin/malloctest.o user/linker.ld
 $(USER_MALLOCTEST_OBJ): $(USER_MALLOCTEST_ELF)
 	$(LD) -m elf32lriscv -r -b binary -o $@ $<
 
+$(USER_BADTEST_ELF): $(BUILD_DIR)/user/bin/badtest.o user/linker.ld
+	$(CC) $(ARCH_FLAGS) $(LDFLAGS_USER) -T user/linker.ld $(BUILD_DIR)/user/bin/badtest.o -o $@
+
+$(USER_BADTEST_OBJ): $(USER_BADTEST_ELF)
+	$(LD) -m elf32lriscv -r -b binary -o $@ $<
+
 $(KERNEL_ELF): toolchain $(KERNEL_OBJS) kernel/linker.ld
 	$(CC) $(ARCH_FLAGS) $(LDFLAGS) $(KERNEL_OBJS) -o $@
 
@@ -251,8 +259,8 @@ test: build
 	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
 
 regression: build
-	QEMU_SMOKE_INPUT='help\nwhich echo\n/bin/echo hello\necho hello\n/bin/forktest\n/bin/multiforktest\n/bin/vmtest\n/bin/schedtest\n/bin/malloctest\ntouch a\nls /bin\nls /dev\nstat /dev/console\ncat /dev/console\nls /proc\ncat /proc/status\ncat /proc/meminfo\ncat /proc/uptime\ncat /proc/1\nls\necho hello > a\ncat a\ncat /README\ngrep ZOS < /README\ncat < /README\nwc < a\necho hi | wc\ncat /README | grep ZOS\necho hi | grep hi\nps\npwd\nclear\nenv\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
-	QEMU_SMOKE_EXPECT='commands:;echo;hello;forktest: child saw 0;forktest: wait reaped child;multifork: wait reaped 3;multifork: ok;vmtest: isolation ok;schedtest: wait reaped 3;schedtest: ok;malloctest: ok;multiforktest;schedtest;malloctest;console;char /dev/console;status;meminfo;uptime;pid: 1 ppid: 0 state: running name: sh;mem total_pages=;uptime ;pid: 1;a;ZOS README;lines=1 words=1 bytes=6;lines=1 words=1 bytes=3;hi;pid: 1 ppid: 0 state: running name: sh;PATH=/bin;history;user: halted cleanly' \
+	QEMU_SMOKE_INPUT='help\nwhich echo\n/bin/echo hello\necho hello\n/bin/forktest\n/bin/multiforktest\n/bin/vmtest\n/bin/schedtest\n/bin/malloctest\n/bin/badtest\necho after-badtest\ntouch a\nls /bin\nls /dev\nstat /dev/console\ncat /dev/console\nls /proc\ncat /proc/status\ncat /proc/meminfo\ncat /proc/uptime\ncat /proc/1\nls\necho hello > a\ncat a\ncat /README\ngrep ZOS < /README\ncat < /README\nwc < a\necho hi | wc\ncat /README | grep ZOS\necho hi | grep hi\nps\npwd\nclear\nenv\nhistory\ngrep hello a\nwc a\ntrue\nfalse\ncd /\nreboot\n' \
+	QEMU_SMOKE_EXPECT='commands:;echo;hello;forktest: child saw 0;forktest: wait reaped child;multifork: wait reaped 3;multifork: ok;vmtest: isolation ok;schedtest: wait reaped 3;schedtest: ok;malloctest: ok;user: killed pid;after-badtest;multiforktest;schedtest;malloctest;badtest;console;char /dev/console;status;meminfo;uptime;pid: 1 ppid: 0 state: running name: sh;mem total_pages=;uptime ;pid: 1;a;ZOS README;lines=1 words=1 bytes=6;lines=1 words=1 bytes=3;hi;pid: 1 ppid: 0 state: running name: sh;PATH=/bin;history;user: halted cleanly' \
 	./scripts/run-qemu-smoke.sh $(KERNEL_ELF) $(OPENSBI_RV32)
 
 disk-image:

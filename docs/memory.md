@@ -78,3 +78,8 @@ user heap is a fixed four-page region mapped eagerly into every process.
 `fork` copies heap pages and the current break, while `exec` clears the heap and
 resets the break to `USER_HEAP_BASE`. Heap growth beyond `USER_HEAP_TOP`
 returns `-1`; demand paging is still deferred.
+
+User-mode illegal instruction and access/page-fault traps now terminate the
+faulting non-init process instead of panicking the kernel. `/bin/badtest` is the
+regression case for this path: it writes to an unmapped address, the kernel
+marks it exited, and the shell continues.
