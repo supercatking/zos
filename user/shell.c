@@ -774,7 +774,8 @@ static int should_exec_external(int argc, char **argv)
         return 1;
     }
     if (streq(argv[0], "rm") || streq(argv[0], "mkdir") ||
-        streq(argv[0], "rmdir") || streq(argv[0], "mv")) {
+        streq(argv[0], "rmdir") || streq(argv[0], "mv") ||
+        streq(argv[0], "cp")) {
         return 1;
     }
     if (streq(argv[0], "echo")) {
