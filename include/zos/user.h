@@ -21,6 +21,10 @@ int user_wait(struct trap_frame *tf);
 int user_getpid(void);
 uintptr_t user_procinfo(char *buf, uintptr_t len);
 int user_exit_process(uintptr_t status, struct trap_frame *tf);
+int user_fd_open(const char *path);
+uintptr_t user_fd_read(int fd, char *buf, uintptr_t len);
+uintptr_t user_fd_write(int fd, const char *buf, uintptr_t len);
+int user_fd_close(int fd);
 void user_timer_tick(struct trap_frame *tf);
 void user_enter(uintptr_t entry, uintptr_t stack_top) __attribute__((noreturn));
 

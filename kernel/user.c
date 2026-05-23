@@ -7,6 +7,7 @@
 #include <zos/riscv.h>
 #include <zos/trap.h>
 #include <zos/user.h>
+#include <zos/vfs.h>
 #include <zos/vm.h>
 
 extern char _binary_build_user_shell_elf_start[];
@@ -43,6 +44,23 @@ extern char _binary_build_user_bin_false_elf_end[];
 static size_t current_text_pages;
 static uintptr_t init_entry = USER_TEXT_BASE;
 
+#define PROC_MAX 8
+#define PROC_FD_MAX 16
+#define FILE_MAX 32
+
+enum file_type {
+    FILE_UNUSED = 0,
+    FILE_CONSOLE_IN,
+    FILE_CONSOLE_OUT,
+    FILE_VFS,
+};
+
+struct file {
+    enum file_type type;
+    int refcount;
+    int backend_fd;
+};
+
 enum proc_state {
     PROC_UNUSED = 0,
     PROC_RUNNABLE,
@@ -64,9 +82,11 @@ struct proc {
     struct trap_frame tf;
     char program[32];
     int waiting;
+    int fds[PROC_FD_MAX];
 };
 
-static struct proc procs[8];
+static struct proc procs[PROC_MAX];
+static struct file files[FILE_MAX];
 static struct proc *current_proc;
 static int current_pid = 1;
 static int next_pid = 2;
@@ -127,6 +147,110 @@ static void copy_string(char *dst, const char *src, size_t max)
         i++;
     }
     dst[i] = '\0';
+}
+
+static void file_table_init(void)
+{
+    for (size_t i = 0; i < FILE_MAX; i++) {
+        files[i].type = FILE_UNUSED;
+        files[i].refcount = 0;
+        files[i].backend_fd = -1;
+    }
+}
+
+static int file_alloc(enum file_type type, int backend_fd)
+{
+    for (size_t i = 0; i < FILE_MAX; i++) {
+        if (files[i].type == FILE_UNUSED) {
+            files[i].type = type;
+            files[i].refcount = 1;
+            files[i].backend_fd = backend_fd;
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+static void file_get(int index)
+{
+    if (index >= 0 && index < FILE_MAX && files[index].type != FILE_UNUSED) {
+        files[index].refcount++;
+    }
+}
+
+static void file_put(int index)
+{
+    if (index < 0 || index >= FILE_MAX || files[index].type == FILE_UNUSED) {
+        return;
+    }
+
+    files[index].refcount--;
+    if (files[index].refcount > 0) {
+        return;
+    }
+
+    if (files[index].type == FILE_VFS) {
+        (void)vfs_close(files[index].backend_fd);
+    }
+    files[index].type = FILE_UNUSED;
+    files[index].backend_fd = -1;
+}
+
+static void proc_fd_clear(struct proc *proc)
+{
+    for (size_t i = 0; i < PROC_FD_MAX; i++) {
+        proc->fds[i] = -1;
+    }
+}
+
+static int proc_fd_install(struct proc *proc, int file_index, int first_fd)
+{
+    if (first_fd < 0) {
+        first_fd = 0;
+    }
+
+    for (int fd = first_fd; fd < PROC_FD_MAX; fd++) {
+        if (proc->fds[fd] < 0) {
+            proc->fds[fd] = file_index;
+            return fd;
+        }
+    }
+    return -1;
+}
+
+static void proc_fd_init_stdio(struct proc *proc)
+{
+    int in = file_alloc(FILE_CONSOLE_IN, -1);
+    int out = file_alloc(FILE_CONSOLE_OUT, -1);
+    int err = file_alloc(FILE_CONSOLE_OUT, -1);
+
+    proc_fd_clear(proc);
+    if (in < 0 || out < 0 || err < 0) {
+        PANIC("user: stdio fd setup failed");
+    }
+    proc->fds[0] = in;
+    proc->fds[1] = out;
+    proc->fds[2] = err;
+}
+
+static void proc_fd_copy(struct proc *dst, struct proc *src)
+{
+    for (size_t i = 0; i < PROC_FD_MAX; i++) {
+        dst->fds[i] = src->fds[i];
+        if (dst->fds[i] >= 0) {
+            file_get(dst->fds[i]);
+        }
+    }
+}
+
+static void proc_fd_close_all(struct proc *proc)
+{
+    for (size_t i = 0; i < PROC_FD_MAX; i++) {
+        if (proc->fds[i] >= 0) {
+            file_put(proc->fds[i]);
+            proc->fds[i] = -1;
+        }
+    }
 }
 
 static uintptr_t append_char(char *buf, uintptr_t out, uintptr_t len, char ch)
@@ -438,8 +562,10 @@ void user_init(void)
     struct proc *init = &procs[0];
 
     current_text_pages = USER_TEXT_PAGES;
+    file_table_init();
     for (size_t i = 0; i < sizeof(procs) / sizeof(procs[0]); i++) {
         procs[i].state = PROC_UNUSED;
+        proc_fd_clear(&procs[i]);
     }
 
     init->pid = 1;
@@ -447,6 +573,7 @@ void user_init(void)
     init->exit_status = 0;
     init->state = PROC_RUNNING;
     init->waiting = 0;
+    proc_fd_init_stdio(init);
     copy_string(init->program, "/bin/sh", sizeof(init->program));
     if (proc_alloc_address_space(init) != 0) {
         PANIC("user: init address space failed");
@@ -511,7 +638,9 @@ int user_fork(struct trap_frame *tf)
             procs[i].exit_status = 0;
             procs[i].state = PROC_RUNNABLE;
             procs[i].waiting = 0;
+            proc_fd_copy(&procs[i], current_proc);
             if (proc_alloc_address_space(&procs[i]) != 0) {
+                proc_fd_close_all(&procs[i]);
                 procs[i].state = PROC_UNUSED;
                 return -1;
             }
@@ -545,6 +674,7 @@ int user_exit_process(uintptr_t status, struct trap_frame *tf)
             procs[i].state = PROC_ZOMBIE;
             procs[i].exit_status = (int)status;
             procs[i].tf = *tf;
+            proc_fd_close_all(&procs[i]);
             if (parent->state == PROC_BLOCKED && parent->waiting) {
                 parent->tf.a0 = (uintptr_t)procs[i].pid;
                 parent->waiting = 0;
@@ -627,6 +757,118 @@ int user_exec(const char *path, const char *arg, struct trap_frame *tf)
     tf->sepc = entry;
     tf->sp = stack_top;
     __asm__ volatile("sfence.vma" ::: "memory");
+    return 0;
+}
+
+int user_fd_open(const char *path)
+{
+    int backend_fd;
+    int file_index;
+    int fd;
+
+    if (current_proc == 0) {
+        return -1;
+    }
+
+    backend_fd = vfs_open(path);
+    if (backend_fd < 0) {
+        return -1;
+    }
+
+    file_index = file_alloc(FILE_VFS, backend_fd);
+    if (file_index < 0) {
+        (void)vfs_close(backend_fd);
+        return -1;
+    }
+
+    fd = proc_fd_install(current_proc, file_index, 3);
+    if (fd < 0) {
+        file_put(file_index);
+        return -1;
+    }
+    return fd;
+}
+
+uintptr_t user_fd_read(int fd, char *buf, uintptr_t len)
+{
+    int file_index;
+    struct file *file;
+    uintptr_t count = 0;
+
+    if (current_proc == 0 || fd < 0 || fd >= PROC_FD_MAX) {
+        return (uintptr_t)-1;
+    }
+
+    file_index = current_proc->fds[fd];
+    if (file_index < 0 || file_index >= FILE_MAX) {
+        return (uintptr_t)-1;
+    }
+
+    file = &files[file_index];
+    switch (file->type) {
+    case FILE_CONSOLE_IN:
+        while (count < len) {
+            char ch = console_getchar();
+            if (ch == '\r') {
+                ch = '\n';
+            }
+            console_putchar(ch);
+            buf[count++] = ch;
+            if (ch == '\n') {
+                break;
+            }
+        }
+        return count;
+    case FILE_VFS:
+        return vfs_read(file->backend_fd, buf, len);
+    case FILE_CONSOLE_OUT:
+    case FILE_UNUSED:
+    default:
+        return (uintptr_t)-1;
+    }
+}
+
+uintptr_t user_fd_write(int fd, const char *buf, uintptr_t len)
+{
+    int file_index;
+    struct file *file;
+
+    if (current_proc == 0 || fd < 0 || fd >= PROC_FD_MAX) {
+        return (uintptr_t)-1;
+    }
+
+    file_index = current_proc->fds[fd];
+    if (file_index < 0 || file_index >= FILE_MAX) {
+        return (uintptr_t)-1;
+    }
+
+    file = &files[file_index];
+    switch (file->type) {
+    case FILE_CONSOLE_OUT:
+        for (uintptr_t i = 0; i < len; i++) {
+            console_putchar(buf[i]);
+        }
+        return len;
+    case FILE_VFS:
+        return vfs_write(file->backend_fd, buf, len);
+    case FILE_CONSOLE_IN:
+    case FILE_UNUSED:
+    default:
+        return (uintptr_t)-1;
+    }
+}
+
+int user_fd_close(int fd)
+{
+    if (current_proc == 0 || fd < 0 || fd >= PROC_FD_MAX) {
+        return -1;
+    }
+    if (current_proc->fds[fd] < 0) {
+        return -1;
+    }
+
+    file_put(current_proc->fds[fd]);
+    current_proc->fds[fd] = -1;
     return 0;
 }
 

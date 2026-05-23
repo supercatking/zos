@@ -25,36 +25,12 @@ static uint64_t read_time(void)
 
 static uintptr_t sys_write(uintptr_t fd, const char *buf, uintptr_t len)
 {
-    if (fd == 1 || fd == 2) {
-        for (uintptr_t i = 0; i < len; i++) {
-            console_putchar(buf[i]);
-        }
-        return len;
-    }
-
-    return vfs_write((int)fd, buf, len);
+    return user_fd_write((int)fd, buf, len);
 }
 
 static uintptr_t sys_read(uintptr_t fd, char *buf, uintptr_t len)
 {
-    uintptr_t count = 0;
-
-    if (fd == 0) {
-        while (count < len) {
-            char ch = console_getchar();
-            if (ch == '\r') {
-                ch = '\n';
-            }
-            console_putchar(ch);
-            buf[count++] = ch;
-            if (ch == '\n') {
-                break;
-            }
-        }
-        return count;
-    }
-
-    return vfs_read((int)fd, buf, len);
+    return user_fd_read((int)fd, buf, len);
 }
 
 static void sys_exit(uintptr_t status, struct trap_frame *tf)
@@ -135,10 +111,10 @@ void syscall_handle(struct trap_frame *tf)
         tf->a0 = sys_read(tf->a0, (char *)tf->a1, tf->a2);
         break;
     case SYS_OPEN:
-        tf->a0 = (uintptr_t)vfs_open((const char *)tf->a0);
+        tf->a0 = (uintptr_t)user_fd_open((const char *)tf->a0);
         break;
     case SYS_CLOSE:
-        tf->a0 = (uintptr_t)vfs_close((int)tf->a0);
+        tf->a0 = (uintptr_t)user_fd_close((int)tf->a0);
         break;
     case SYS_SLEEP:
         tf->a0 = sys_sleep(tf->a0);
