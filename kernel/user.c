@@ -47,18 +47,31 @@ static uintptr_t init_entry = USER_TEXT_BASE;
 #define PROC_MAX 8
 #define PROC_FD_MAX 16
 #define FILE_MAX 32
+#define PIPE_MAX 8
+#define PIPE_BUF_SIZE 512
 
 enum file_type {
     FILE_UNUSED = 0,
     FILE_CONSOLE_IN,
     FILE_CONSOLE_OUT,
     FILE_VFS,
+    FILE_PIPE_READ,
+    FILE_PIPE_WRITE,
 };
 
 struct file {
     enum file_type type;
     int refcount;
     int backend_fd;
+};
+
+struct pipe {
+    int used;
+    int read_refs;
+    int write_refs;
+    uintptr_t read_pos;
+    uintptr_t write_pos;
+    char buf[PIPE_BUF_SIZE];
 };
 
 enum proc_state {
@@ -87,6 +100,7 @@ struct proc {
 
 static struct proc procs[PROC_MAX];
 static struct file files[FILE_MAX];
+static struct pipe pipes[PIPE_MAX];
 static struct proc *current_proc;
 static int current_pid = 1;
 static int next_pid = 2;
@@ -156,6 +170,57 @@ static void file_table_init(void)
         files[i].refcount = 0;
         files[i].backend_fd = -1;
     }
+    for (size_t i = 0; i < PIPE_MAX; i++) {
+        pipes[i].used = 0;
+        pipes[i].read_refs = 0;
+        pipes[i].write_refs = 0;
+        pipes[i].read_pos = 0;
+        pipes[i].write_pos = 0;
+    }
+}
+
+static int pipe_alloc(void)
+{
+    for (size_t i = 0; i < PIPE_MAX; i++) {
+        if (!pipes[i].used) {
+            pipes[i].used = 1;
+            pipes[i].read_refs = 0;
+            pipes[i].write_refs = 0;
+            pipes[i].read_pos = 0;
+            pipes[i].write_pos = 0;
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+static void pipe_ref(int pipe_index, enum file_type type)
+{
+    if (pipe_index < 0 || pipe_index >= PIPE_MAX || !pipes[pipe_index].used) {
+        return;
+    }
+    if (type == FILE_PIPE_READ) {
+        pipes[pipe_index].read_refs++;
+    } else if (type == FILE_PIPE_WRITE) {
+        pipes[pipe_index].write_refs++;
+    }
+}
+
+static void pipe_unref(int pipe_index, enum file_type type)
+{
+    if (pipe_index < 0 || pipe_index >= PIPE_MAX || !pipes[pipe_index].used) {
+        return;
+    }
+    if (type == FILE_PIPE_READ && pipes[pipe_index].read_refs > 0) {
+        pipes[pipe_index].read_refs--;
+    } else if (type == FILE_PIPE_WRITE && pipes[pipe_index].write_refs > 0) {
+        pipes[pipe_index].write_refs--;
+    }
+    if (pipes[pipe_index].read_refs == 0 && pipes[pipe_index].write_refs == 0) {
+        pipes[pipe_index].used = 0;
+        pipes[pipe_index].read_pos = 0;
+        pipes[pipe_index].write_pos = 0;
+    }
 }
 
 static int file_alloc(enum file_type type, int backend_fd)
@@ -165,6 +230,9 @@ static int file_alloc(enum file_type type, int backend_fd)
             files[i].type = type;
             files[i].refcount = 1;
             files[i].backend_fd = backend_fd;
+            if (type == FILE_PIPE_READ || type == FILE_PIPE_WRITE) {
+                pipe_ref(backend_fd, type);
+            }
             return (int)i;
         }
     }
@@ -191,6 +259,9 @@ static void file_put(int index)
 
     if (files[index].type == FILE_VFS) {
         (void)vfs_close(files[index].backend_fd);
+    } else if (files[index].type == FILE_PIPE_READ ||
+               files[index].type == FILE_PIPE_WRITE) {
+        pipe_unref(files[index].backend_fd, files[index].type);
     }
     files[index].type = FILE_UNUSED;
     files[index].backend_fd = -1;
@@ -821,7 +892,23 @@ uintptr_t user_fd_read(int fd, char *buf, uintptr_t len)
         return count;
     case FILE_VFS:
         return vfs_read(file->backend_fd, buf, len);
+    case FILE_PIPE_READ:
+    {
+        struct pipe *pipe;
+        uintptr_t count = 0;
+
+        if (file->backend_fd < 0 || file->backend_fd >= PIPE_MAX ||
+            !pipes[file->backend_fd].used) {
+            return (uintptr_t)-1;
+        }
+        pipe = &pipes[file->backend_fd];
+        while (count < len && pipe->read_pos < pipe->write_pos) {
+            buf[count++] = pipe->buf[pipe->read_pos++];
+        }
+        return count;
+    }
     case FILE_CONSOLE_OUT:
+    case FILE_PIPE_WRITE:
     case FILE_UNUSED:
     default:
         return (uintptr_t)-1;
@@ -851,7 +938,23 @@ uintptr_t user_fd_write(int fd, const char *buf, uintptr_t len)
         return len;
     case FILE_VFS:
         return vfs_write(file->backend_fd, buf, len);
+    case FILE_PIPE_WRITE:
+    {
+        struct pipe *pipe;
+        uintptr_t count = 0;
+
+        if (file->backend_fd < 0 || file->backend_fd >= PIPE_MAX ||
+            !pipes[file->backend_fd].used) {
+            return (uintptr_t)-1;
+        }
+        pipe = &pipes[file->backend_fd];
+        while (count < len && pipe->write_pos < PIPE_BUF_SIZE) {
+            pipe->buf[pipe->write_pos++] = buf[count++];
+        }
+        return count;
+    }
     case FILE_CONSOLE_IN:
+    case FILE_PIPE_READ:
     case FILE_UNUSED:
     default:
         return (uintptr_t)-1;
@@ -898,6 +1001,55 @@ int user_fd_dup2(int oldfd, int newfd)
     }
     current_proc->fds[newfd] = file_index;
     return newfd;
+}
+
+int user_fd_pipe(int *fds)
+{
+    int pipe_index;
+    int read_file;
+    int write_file;
+    int read_fd;
+    int write_fd;
+
+    if (current_proc == 0 || fds == 0) {
+        return -1;
+    }
+
+    pipe_index = pipe_alloc();
+    if (pipe_index < 0) {
+        return -1;
+    }
+
+    read_file = file_alloc(FILE_PIPE_READ, pipe_index);
+    write_file = file_alloc(FILE_PIPE_WRITE, pipe_index);
+    if (read_file < 0 || write_file < 0) {
+        if (read_file >= 0) {
+            file_put(read_file);
+        }
+        if (write_file >= 0) {
+            file_put(write_file);
+        }
+        pipes[pipe_index].used = 0;
+        return -1;
+    }
+
+    read_fd = proc_fd_install(current_proc, read_file, 3);
+    write_fd = proc_fd_install(current_proc, write_file, 3);
+    if (read_fd < 0 || write_fd < 0) {
+        if (read_fd >= 0) {
+            current_proc->fds[read_fd] = -1;
+        }
+        if (write_fd >= 0) {
+            current_proc->fds[write_fd] = -1;
+        }
+        file_put(read_file);
+        file_put(write_file);
+        return -1;
+    }
+
+    fds[0] = read_fd;
+    fds[1] = write_fd;
+    return 0;
 }
 
 void user_timer_tick(struct trap_frame *tf)

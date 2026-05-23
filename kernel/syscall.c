@@ -172,6 +172,9 @@ void syscall_handle(struct trap_frame *tf)
     case SYS_DUP2:
         tf->a0 = (uintptr_t)user_fd_dup2((int)tf->a0, (int)tf->a1);
         break;
+    case SYS_PIPE:
+        tf->a0 = (uintptr_t)user_fd_pipe((int *)tf->a0);
+        break;
     default:
         console_puts("syscall: unknown ");
         console_put_hex(number);

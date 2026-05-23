@@ -22,6 +22,7 @@ typedef unsigned int size_t;
 #define SYS_GETPID 19u
 #define SYS_PROCINFO 20u
 #define SYS_DUP2 21u
+#define SYS_PIPE 22u
 
 #define MAX_LINE 96
 #define MAX_ARGS 8
@@ -64,6 +65,11 @@ static long sys_close(int fd)
 static long sys_dup2(int oldfd, int newfd)
 {
     return syscall3(SYS_DUP2, (uintptr_t)oldfd, (uintptr_t)newfd, 0);
+}
+
+static long sys_pipe(int fds[2])
+{
+    return syscall3(SYS_PIPE, (uintptr_t)fds, 0, 0);
 }
 
 static long sys_create(const char *path)
@@ -870,6 +876,87 @@ static int run_external(int argc, char **argv)
     return 0;
 }
 
+static int find_pipe_token(int argc, char **argv)
+{
+    for (int i = 0; i < argc; i++) {
+        if (streq(argv[i], "|")) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static int run_pipeline(int argc, char **argv)
+{
+    int pipe_at = find_pipe_token(argc, argv);
+    int fds[2];
+    struct exec_command left;
+    struct exec_command right;
+
+    if (pipe_at <= 0 || pipe_at + 1 >= argc) {
+        puts("pipe: invalid command\n");
+        return -1;
+    }
+    if (parse_exec_command(pipe_at, argv, &left) != 0 ||
+        parse_exec_command(argc - pipe_at - 1, &argv[pipe_at + 1], &right) != 0) {
+        return -1;
+    }
+    if (sys_pipe(fds) < 0) {
+        puts("pipe: failed\n");
+        return -1;
+    }
+
+    long left_pid = sys_fork();
+    if (left_pid == 0) {
+        (void)sys_close(fds[0]);
+        if (sys_dup2(fds[1], 1) < 0) {
+            sys_exit(126);
+        }
+        (void)sys_close(fds[1]);
+        if (setup_redirects(&left) != 0) {
+            sys_exit(126);
+        }
+        (void)exec_external(&left);
+        sys_exit(127);
+    }
+    if (left_pid < 0) {
+        puts("pipe: fork failed\n");
+        (void)sys_close(fds[0]);
+        (void)sys_close(fds[1]);
+        return -1;
+    }
+    (void)sys_close(fds[1]);
+    if (sys_wait() < 0) {
+        puts("pipe: wait failed\n");
+        (void)sys_close(fds[0]);
+        return -1;
+    }
+
+    long right_pid = sys_fork();
+    if (right_pid == 0) {
+        if (sys_dup2(fds[0], 0) < 0) {
+            sys_exit(126);
+        }
+        (void)sys_close(fds[0]);
+        if (setup_redirects(&right) != 0) {
+            sys_exit(126);
+        }
+        (void)exec_external(&right);
+        sys_exit(127);
+    }
+    if (right_pid < 0) {
+        puts("pipe: fork failed\n");
+        (void)sys_close(fds[0]);
+        return -1;
+    }
+    (void)sys_close(fds[0]);
+    if (sys_wait() < 0) {
+        puts("pipe: wait failed\n");
+        return -1;
+    }
+    return 0;
+}
+
 static int cmd_clear(int argc, char **argv)
 {
     (void)argc;
@@ -939,6 +1026,11 @@ void _start(void)
         record_history(line);
         parse_line(line, &argc, argv);
         if (argc == 0) {
+            continue;
+        }
+
+        if (find_pipe_token(argc, argv) >= 0) {
+            (void)run_pipeline(argc, argv);
             continue;
         }
 
