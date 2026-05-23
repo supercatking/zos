@@ -948,7 +948,11 @@ uintptr_t user_fd_read(int fd, char *buf, uintptr_t len)
     switch (file->type) {
     case FILE_CONSOLE_IN:
         while (count < len) {
-            char ch = console_getchar();
+            char ch;
+
+            while (!console_read_char(&ch)) {
+                __asm__ volatile("nop");
+            }
 
             if (ch == 0x04) {
                 return count;

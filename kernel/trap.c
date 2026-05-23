@@ -36,6 +36,7 @@ void trap_handler(struct trap_frame *tf)
         } else {
             timer_handle_interrupt();
         }
+        console_poll_input();
         user_timer_tick(tf);
         return;
     }
