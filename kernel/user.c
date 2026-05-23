@@ -41,6 +41,8 @@ extern char _binary_build_user_bin_true_elf_start[];
 extern char _binary_build_user_bin_true_elf_end[];
 extern char _binary_build_user_bin_false_elf_start[];
 extern char _binary_build_user_bin_false_elf_end[];
+extern char _binary_build_user_bin_malloctest_elf_start[];
+extern char _binary_build_user_bin_malloctest_elf_end[];
 
 static size_t current_text_pages;
 static uintptr_t init_entry = USER_TEXT_BASE;
@@ -92,6 +94,8 @@ struct proc {
     pagetable_t pagetable;
     void *text_pages[USER_TEXT_PAGES];
     void *stack_page;
+    void *heap_pages[USER_HEAP_PAGES];
+    uintptr_t heap_break;
     uint8_t kernel_stack[PAGE_SIZE];
     struct trap_frame tf;
     char program[32];
@@ -415,6 +419,8 @@ void user_register_programs(void)
                 _binary_build_user_bin_true_elf_end);
     add_program("/bin/false", _binary_build_user_bin_false_elf_start,
                 _binary_build_user_bin_false_elf_end);
+    add_program("/bin/malloctest", _binary_build_user_bin_malloctest_elf_start,
+                _binary_build_user_bin_malloctest_elf_end);
 }
 
 static void copy_bytes(void *dst, const void *src, size_t len)
@@ -476,6 +482,20 @@ static int proc_alloc_address_space(struct proc *proc)
         return -1;
     }
 
+    for (size_t i = 0; i < USER_HEAP_PAGES; i++) {
+        proc->heap_pages[i] = pmm_alloc_page();
+        if (proc->heap_pages[i] == 0) {
+            return -1;
+        }
+        zero_page(proc->heap_pages[i]);
+        if (vm_map(proc->pagetable, USER_HEAP_BASE + i * PAGE_SIZE,
+                   (uintptr_t)proc->heap_pages[i], PAGE_SIZE,
+                   PTE_R | PTE_W | PTE_U) != 0) {
+            return -1;
+        }
+    }
+    proc->heap_break = USER_HEAP_BASE;
+
     return 0;
 }
 
@@ -485,6 +505,10 @@ static void proc_copy_user_image(struct proc *dst, struct proc *src)
         copy_bytes(dst->text_pages[i], src->text_pages[i], PAGE_SIZE);
     }
     copy_bytes(dst->stack_page, src->stack_page, PAGE_SIZE);
+    for (size_t i = 0; i < USER_HEAP_PAGES; i++) {
+        copy_bytes(dst->heap_pages[i], src->heap_pages[i], PAGE_SIZE);
+    }
+    dst->heap_break = src->heap_break;
 }
 
 static void proc_load_image(struct proc *proc, const char *image, size_t image_size)
@@ -591,6 +615,14 @@ static void proc_release_user_pages(struct proc *proc)
         proc->stack_page = 0;
     }
 
+    for (size_t i = 0; i < USER_HEAP_PAGES; i++) {
+        if (proc->heap_pages[i] != 0) {
+            pmm_free_page(proc->heap_pages[i]);
+            proc->heap_pages[i] = 0;
+        }
+    }
+    proc->heap_break = USER_HEAP_BASE;
+
     proc->pagetable = 0;
 }
 
@@ -684,6 +716,7 @@ void user_init(void)
     init->state = PROC_RUNNING;
     init->waiting = 0;
     init->sleep_until = 0;
+    init->heap_break = USER_HEAP_BASE;
     proc_fd_init_stdio(init);
     copy_string(init->program, "/bin/sh", sizeof(init->program));
     if (proc_alloc_address_space(init) != 0) {
@@ -750,6 +783,7 @@ int user_fork(struct trap_frame *tf)
             procs[i].state = PROC_RUNNABLE;
             procs[i].waiting = 0;
             procs[i].sleep_until = 0;
+            procs[i].heap_break = USER_HEAP_BASE;
             proc_fd_copy(&procs[i], current_proc);
             if (proc_alloc_address_space(&procs[i]) != 0) {
                 proc_fd_close_all(&procs[i]);
@@ -885,6 +919,10 @@ int user_exec(const char *path, const char *arg, struct trap_frame *tf)
         entry = USER_TEXT_BASE;
     }
     copy_string(current_proc->program, path, sizeof(current_proc->program));
+    for (size_t i = 0; i < USER_HEAP_PAGES; i++) {
+        zero_page(current_proc->heap_pages[i]);
+    }
+    current_proc->heap_break = USER_HEAP_BASE;
 
     if (arg != 0) {
         copy_string(arg_dst, arg, 256);
@@ -898,6 +936,34 @@ int user_exec(const char *path, const char *arg, struct trap_frame *tf)
     tf->sp = stack_top;
     __asm__ volatile("sfence.vma" ::: "memory");
     return 0;
+}
+
+uintptr_t user_sbrk(intptr_t increment)
+{
+    uintptr_t old_break;
+    uintptr_t new_break;
+
+    if (current_proc == 0) {
+        return (uintptr_t)-1;
+    }
+
+    old_break = current_proc->heap_break;
+    if (increment >= 0) {
+        new_break = old_break + (uintptr_t)increment;
+        if (new_break < old_break || new_break > USER_HEAP_TOP) {
+            return (uintptr_t)-1;
+        }
+    } else {
+        uintptr_t decrement = (uintptr_t)(-increment);
+
+        if (decrement > old_break - USER_HEAP_BASE) {
+            return (uintptr_t)-1;
+        }
+        new_break = old_break - decrement;
+    }
+
+    current_proc->heap_break = new_break;
+    return old_break;
 }
 
 int user_fd_open(const char *path)

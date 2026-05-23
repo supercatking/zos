@@ -7,6 +7,9 @@
 #define USER_STACK_BASE 0x00410000u
 #define USER_STACK_TOP  0x00411000u
 #define USER_ARG_BASE   (USER_STACK_TOP - 512u)
+#define USER_HEAP_BASE  0x00412000u
+#define USER_HEAP_PAGES 4u
+#define USER_HEAP_TOP   (USER_HEAP_BASE + USER_HEAP_PAGES * 4096u)
 #define USER_TEXT_PAGES ((USER_STACK_BASE - USER_TEXT_BASE) / 4096u)
 
 struct trap_frame;
@@ -28,6 +31,7 @@ uintptr_t user_fd_write(int fd, const char *buf, uintptr_t len);
 int user_fd_close(int fd);
 int user_fd_dup2(int oldfd, int newfd);
 int user_fd_pipe(int *fds);
+uintptr_t user_sbrk(intptr_t increment);
 void user_timer_tick(struct trap_frame *tf);
 void user_enter(uintptr_t entry, uintptr_t stack_top) __attribute__((noreturn));
 

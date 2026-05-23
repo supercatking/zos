@@ -18,6 +18,7 @@ typedef unsigned int size_t;
 #define SYS_PROCINFO 20u
 #define SYS_DUP2 21u
 #define SYS_PIPE 22u
+#define SYS_SBRK 23u
 
 static U_UNUSED long syscall3(uintptr_t number, uintptr_t a0, uintptr_t a1, uintptr_t a2)
 {
@@ -87,6 +88,16 @@ static U_UNUSED void u_memset(void *ptr, int value, size_t len)
 
     for (size_t i = 0; i < len; i++) {
         p[i] = (unsigned char)value;
+    }
+}
+
+static U_UNUSED void u_memcpy(void *dst, const void *src, size_t len)
+{
+    unsigned char *d = (unsigned char *)dst;
+    const unsigned char *s = (const unsigned char *)src;
+
+    for (size_t i = 0; i < len; i++) {
+        d[i] = s[i];
     }
 }
 
@@ -162,6 +173,11 @@ static U_UNUSED long u_pipe(int fds[2])
     return syscall3(SYS_PIPE, (uintptr_t)fds, 0, 0);
 }
 
+static U_UNUSED void *u_sbrk(int increment)
+{
+    return (void *)syscall3(SYS_SBRK, (uintptr_t)increment, 0, 0);
+}
+
 static U_UNUSED long u_list(const char *path, char *buf, size_t len)
 {
     return syscall3(SYS_LIST, (uintptr_t)buf, len, (uintptr_t)path);
@@ -210,4 +226,57 @@ static U_UNUSED void u_spin(unsigned int count)
 {
     for (volatile unsigned int i = 0; i < count; i++) {
     }
+}
+
+struct u_malloc_header {
+    size_t size;
+    struct u_malloc_header *next;
+};
+
+static struct u_malloc_header *u_malloc_free_list;
+
+static U_UNUSED size_t u_align_up(size_t value, size_t alignment)
+{
+    return (value + alignment - 1u) & ~(alignment - 1u);
+}
+
+static U_UNUSED void *u_malloc(size_t size)
+{
+    size_t aligned = u_align_up(size, sizeof(uintptr_t));
+    struct u_malloc_header **prev = &u_malloc_free_list;
+    struct u_malloc_header *node = u_malloc_free_list;
+
+    if (aligned == 0) {
+        return 0;
+    }
+
+    while (node != 0) {
+        if (node->size >= aligned) {
+            *prev = node->next;
+            return node + 1;
+        }
+        prev = &node->next;
+        node = node->next;
+    }
+
+    node = (struct u_malloc_header *)u_sbrk((int)(sizeof(*node) + aligned));
+    if ((uintptr_t)node == (uintptr_t)-1) {
+        return 0;
+    }
+    node->size = aligned;
+    node->next = 0;
+    return node + 1;
+}
+
+static U_UNUSED void u_free(void *ptr)
+{
+    struct u_malloc_header *node;
+
+    if (ptr == 0) {
+        return;
+    }
+
+    node = ((struct u_malloc_header *)ptr) - 1;
+    node->next = u_malloc_free_list;
+    u_malloc_free_list = node;
 }

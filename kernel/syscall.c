@@ -150,6 +150,9 @@ void syscall_handle(struct trap_frame *tf)
     case SYS_PIPE:
         tf->a0 = (uintptr_t)user_fd_pipe((int *)tf->a0);
         break;
+    case SYS_SBRK:
+        tf->a0 = user_sbrk((intptr_t)tf->a0);
+        break;
     default:
         console_puts("syscall: unknown ");
         console_put_hex(number);

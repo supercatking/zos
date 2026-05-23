@@ -66,8 +66,15 @@ script:
 
 - user text base: `0x00400000`
 - user stack page: `0x00410000..0x00411000`
+- user heap: `0x00412000..0x00416000`
 
 `fork` copies the parent user pages into child-owned physical pages. `exec`
 replaces only the calling process text image. M9 releases exited child text and
 stack pages during `wait`/parent wakeup. Full page-table page reclamation is
 still deferred to a later VM cleanup pass.
+
+M18 adds `sbrk(increment)` and a libc-lite `u_malloc/u_free` wrapper. The first
+user heap is a fixed four-page region mapped eagerly into every process.
+`fork` copies heap pages and the current break, while `exec` clears the heap and
+resets the break to `USER_HEAP_BASE`. Heap growth beyond `USER_HEAP_TOP`
+returns `-1`; demand paging is still deferred.

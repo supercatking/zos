@@ -37,6 +37,7 @@ The trap handler advances `sepc` by 4 before returning from handled syscalls.
 | 20 | `procinfo` | `a0=buf`, `a1=len` | bytes written |
 | 21 | `dup2` | `a0=oldfd`, `a1=newfd` | duplicated fd or `-1` |
 | 22 | `pipe` | `a0=int fds[2]` | `0` or `-1`; fills read/write fds |
+| 23 | `sbrk` | `a0=signed increment` | previous break or `-1` |
 
 Each process owns a small file descriptor table. Fd `0` starts as the serial
 terminal input, and fd `1`/`2` start as serial terminal output. File descriptors
@@ -44,6 +45,8 @@ from `3` upward refer to VFS handles. `dup2` replaces `newfd` with another
 reference to `oldfd`, which lets the shell implement standard input, output,
 and error redirection.
 `pipe` creates a read fd and a write fd backed by a small in-kernel buffer.
+`sbrk` moves the current process heap break inside the fixed user heap region;
+libc-lite uses it to implement `u_malloc/u_free`.
 
 M11 routes file syscalls through the VFS layer: ramfs is mounted at `/`,
 `/dev/console` is a console device node, `/proc/*` nodes are generated

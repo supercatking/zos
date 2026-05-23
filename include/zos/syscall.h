@@ -25,6 +25,7 @@
 #define SYS_PROCINFO 20u
 #define SYS_DUP2 21u
 #define SYS_PIPE 22u
+#define SYS_SBRK 23u
 
 void syscall_handle(struct trap_frame *tf);
 
