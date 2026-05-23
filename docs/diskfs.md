@@ -35,10 +35,24 @@ ls /disk
 cat /disk/README
 echo hi > /disk/a
 cat /disk/a
+mkdir /disk/tmp
+echo hi > /disk/tmp/a
+ls /disk/tmp
+mv /disk/tmp/a /disk/tmp/b
+rm /disk/tmp/b
+rmdir /disk/tmp
 ```
+
+`make disk-regression` runs the same workflow headlessly through QEMU with a
+virtio-blk disk attached.
 
 ## Limits
 
-The current disk filesystem supports root-level files and one-block writes. It
-does not yet support nested directories, multi-block files, unlink/rename on
-disk, timestamps, permissions, fsck, or crash consistency.
+The current disk filesystem supports a small fixed inode table, one-block files,
+root-level directories, files inside those directories, unlink, and rename.
+Directories are encoded in the fixed root dirent table, so this is still a
+teaching format rather than a general filesystem.
+
+It does not yet support arbitrary-depth directories, directory rename with child
+path rewriting, multi-block files, timestamps, permissions, fsck, or crash
+consistency.

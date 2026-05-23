@@ -112,6 +112,110 @@ static int disk_path_name(const char *path, const char **name)
     return (*name)[0] == '\0' ? -1 : 0;
 }
 
+static uintptr_t string_len(const char *s)
+{
+    uintptr_t len = 0;
+
+    while (s[len] != '\0') {
+        len++;
+    }
+    return len;
+}
+
+static int name_has_slash(const char *name)
+{
+    for (uintptr_t i = 0; name[i] != '\0'; i++) {
+        if (name[i] == '/') {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int find_dirent(const char *name);
+
+static int parent_exists(const char *name)
+{
+    char parent[DISKFS_NAME_MAX];
+    uintptr_t last_slash = 0;
+    int found = 0;
+
+    for (uintptr_t i = 0; name[i] != '\0'; i++) {
+        if (name[i] == '/') {
+            last_slash = i;
+            found = 1;
+        }
+    }
+    if (!found) {
+        return 1;
+    }
+    if (last_slash == 0 || last_slash >= DISKFS_NAME_MAX) {
+        return 0;
+    }
+
+    for (uintptr_t i = 0; i < last_slash; i++) {
+        parent[i] = name[i];
+    }
+    parent[last_slash] = '\0';
+
+    int dirent_index = find_dirent(parent);
+    if (dirent_index < 0) {
+        return 0;
+    }
+    uint32_t ino = dirents[dirent_index].ino;
+    return ino != 0 && ino <= DISKFS_MAX_INODES &&
+           inodes[ino - 1u].type == DISKFS_INODE_DIR;
+}
+
+static int dir_is_empty(const char *name)
+{
+    uintptr_t prefix_len = string_len(name);
+
+    for (int i = 0; i < (int)DISKFS_MAX_INODES; i++) {
+        if (dirents[i].ino == 0) {
+            continue;
+        }
+        if (!streq(dirents[i].name, name) &&
+            string_len(dirents[i].name) > prefix_len &&
+            dirents[i].name[prefix_len] == '/') {
+            int same_prefix = 1;
+            for (uintptr_t j = 0; j < prefix_len; j++) {
+                if (dirents[i].name[j] != name[j]) {
+                    same_prefix = 0;
+                    break;
+                }
+            }
+            if (same_prefix) {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+static int alloc_inode(enum diskfs_inode_type type)
+{
+    for (int i = 1; i < (int)DISKFS_MAX_INODES; i++) {
+        if (inodes[i].type == DISKFS_INODE_FREE) {
+            inodes[i].type = (uint32_t)type;
+            inodes[i].size = 0;
+            inodes[i].blocks[0] = DISKFS_DATA_START_SECTOR + (uint32_t)i;
+            return i;
+        }
+    }
+    return -1;
+}
+
+static int alloc_dirent(void)
+{
+    for (int i = 0; i < (int)DISKFS_MAX_INODES; i++) {
+        if (dirents[i].ino == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 static int find_dirent(const char *name)
 {
     for (int i = 0; i < (int)DISKFS_MAX_INODES; i++) {
@@ -226,9 +330,10 @@ int diskfs_create(const char *path)
 {
     const char *name;
     int dirent_index;
-    int inode_index = -1;
+    int inode_index;
 
-    if (!mounted || disk_path_name(path, &name) != 0) {
+    if (!mounted || disk_path_name(path, &name) != 0 ||
+        string_len(name) >= DISKFS_NAME_MAX || !parent_exists(name)) {
         return -1;
     }
 
@@ -239,29 +344,43 @@ int diskfs_create(const char *path)
         return sync_metadata();
     }
 
-    for (int i = 1; i < (int)DISKFS_MAX_INODES; i++) {
-        if (inodes[i].type == DISKFS_INODE_FREE) {
-            inode_index = i;
-            break;
-        }
-    }
+    inode_index = alloc_inode(DISKFS_INODE_FILE);
     if (inode_index < 0) {
         return -1;
     }
 
-    for (int i = 0; i < (int)DISKFS_MAX_INODES; i++) {
-        if (dirents[i].ino == 0) {
-            dirent_index = i;
-            break;
-        }
-    }
+    dirent_index = alloc_dirent();
     if (dirent_index < 0) {
+        inodes[inode_index].type = DISKFS_INODE_FREE;
         return -1;
     }
 
-    inodes[inode_index].type = DISKFS_INODE_FILE;
-    inodes[inode_index].size = 0;
-    inodes[inode_index].blocks[0] = DISKFS_DATA_START_SECTOR + (uint32_t)inode_index;
+    dirents[dirent_index].ino = (uint32_t)inode_index + 1u;
+    copy_name(dirents[dirent_index].name, name);
+    return sync_metadata();
+}
+
+int diskfs_mkdir(const char *path)
+{
+    const char *name;
+    int inode_index;
+    int dirent_index;
+
+    if (!mounted || disk_path_name(path, &name) != 0 ||
+        string_len(name) >= DISKFS_NAME_MAX || name_has_slash(name) ||
+        find_dirent(name) >= 0) {
+        return -1;
+    }
+
+    inode_index = alloc_inode(DISKFS_INODE_DIR);
+    dirent_index = alloc_dirent();
+    if (inode_index < 0 || dirent_index < 0) {
+        if (inode_index >= 0) {
+            inodes[inode_index].type = DISKFS_INODE_FREE;
+        }
+        return -1;
+    }
+
     dirents[dirent_index].ino = (uint32_t)inode_index + 1u;
     copy_name(dirents[dirent_index].name, name);
     return sync_metadata();
@@ -326,21 +445,107 @@ int diskfs_close(int fd)
     return 0;
 }
 
-uintptr_t diskfs_list(char *buf, uintptr_t len)
+uintptr_t diskfs_list(const char *path, char *buf, uintptr_t len)
 {
     uintptr_t out = 0;
+    const char *dir_name = "";
+    uintptr_t dir_len = 0;
 
     if (!mounted) {
         return (uintptr_t)-1;
     }
+    if (path != 0 && !streq(path, "/disk")) {
+        if (disk_path_name(path, &dir_name) != 0) {
+            return (uintptr_t)-1;
+        }
+        int dirent_index = find_dirent(dir_name);
+        if (dirent_index < 0 ||
+            inodes[dirents[dirent_index].ino - 1u].type != DISKFS_INODE_DIR) {
+            return (uintptr_t)-1;
+        }
+        dir_len = string_len(dir_name);
+    }
 
     for (int i = 0; i < (int)DISKFS_MAX_INODES; i++) {
         if (dirents[i].ino != 0) {
-            out = append_str(buf, out, len, dirents[i].name);
+            const char *name = dirents[i].name;
+            if (dir_len == 0) {
+                if (name_has_slash(name)) {
+                    continue;
+                }
+            } else {
+                int same_prefix = 1;
+                for (uintptr_t j = 0; j < dir_len; j++) {
+                    if (name[j] != dir_name[j]) {
+                        same_prefix = 0;
+                        break;
+                    }
+                }
+                if (!same_prefix || name[dir_len] != '/') {
+                    continue;
+                }
+                name += dir_len + 1u;
+                if (name[0] == '\0' || name_has_slash(name)) {
+                    continue;
+                }
+            }
+            out = append_str(buf, out, len, name);
             out = append_char(buf, out, len, '\n');
         }
     }
     return out;
+}
+
+int diskfs_unlink(const char *path)
+{
+    const char *name;
+    int dirent_index;
+    uint32_t ino;
+
+    if (!mounted || disk_path_name(path, &name) != 0) {
+        return -1;
+    }
+    dirent_index = find_dirent(name);
+    if (dirent_index < 0) {
+        return -1;
+    }
+    ino = dirents[dirent_index].ino;
+    if (ino == 0 || ino > DISKFS_MAX_INODES) {
+        return -1;
+    }
+    if (inodes[ino - 1u].type == DISKFS_INODE_DIR && !dir_is_empty(name)) {
+        return -1;
+    }
+
+    inodes[ino - 1u].type = DISKFS_INODE_FREE;
+    inodes[ino - 1u].size = 0;
+    zero_bytes(inodes[ino - 1u].blocks, sizeof(inodes[ino - 1u].blocks));
+    dirents[dirent_index].ino = 0;
+    dirents[dirent_index].name[0] = '\0';
+    return sync_metadata();
+}
+
+int diskfs_rename(const char *old_path, const char *new_path)
+{
+    const char *old_name;
+    const char *new_name;
+    int dirent_index;
+
+    if (!mounted ||
+        disk_path_name(old_path, &old_name) != 0 ||
+        disk_path_name(new_path, &new_name) != 0 ||
+        string_len(new_name) >= DISKFS_NAME_MAX ||
+        !parent_exists(new_name) ||
+        find_dirent(new_name) >= 0) {
+        return -1;
+    }
+
+    dirent_index = find_dirent(old_name);
+    if (dirent_index < 0) {
+        return -1;
+    }
+    copy_name(dirents[dirent_index].name, new_name);
+    return sync_metadata();
 }
 
 uintptr_t diskfs_stat(const char *path, char *buf, uintptr_t len)
@@ -360,7 +565,9 @@ uintptr_t diskfs_stat(const char *path, char *buf, uintptr_t len)
     }
 
     ino = dirents[dirent_index].ino;
-    out = append_str(buf, out, len, "disk file ");
+    out = append_str(buf, out, len,
+                     inodes[ino - 1u].type == DISKFS_INODE_DIR ?
+                         "disk dir " : "disk file ");
     out = append_str(buf, out, len, path);
     out = append_str(buf, out, len, " size=");
     out = append_uint(buf, out, len, inodes[ino - 1u].size);

@@ -211,6 +211,10 @@ int vfs_create(const char *path)
 
 int vfs_mkdir(const char *path)
 {
+    if (path != 0 && starts_with(path, "/disk/")) {
+        return diskfs_mkdir(path);
+    }
+
     return initramfs_mkdir(path);
 }
 
@@ -296,7 +300,10 @@ uintptr_t vfs_list(const char *path, char *buf, uintptr_t len)
         return out;
     }
     if (path != 0 && streq(path, "/disk")) {
-        return diskfs_list(buf, len);
+        return diskfs_list(path, buf, len);
+    }
+    if (path != 0 && starts_with(path, "/disk/")) {
+        return diskfs_list(path, buf, len);
     }
 
     return initramfs_list(path, buf, len);
@@ -307,6 +314,9 @@ int vfs_unlink(const char *path)
     if (path != 0 && streq(path, "/dev/console")) {
         return -1;
     }
+    if (path != 0 && starts_with(path, "/disk/")) {
+        return diskfs_unlink(path);
+    }
 
     return initramfs_unlink(path);
 }
@@ -316,6 +326,10 @@ int vfs_rename(const char *old_path, const char *new_path)
     if ((old_path != 0 && streq(old_path, "/dev/console")) ||
         (new_path != 0 && streq(new_path, "/dev/console"))) {
         return -1;
+    }
+    if (old_path != 0 && new_path != 0 &&
+        starts_with(old_path, "/disk/") && starts_with(new_path, "/disk/")) {
+        return diskfs_rename(old_path, new_path);
     }
 
     return initramfs_rename(old_path, new_path);

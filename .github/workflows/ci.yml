@@ -31,25 +31,5 @@ jobs:
       - name: Run regression
         run: make regression
 
-      - name: Build disk image
-        run: make disk-image
-
-      - name: Run disk smoke
-        env:
-          QEMU_SMOKE_INPUT: "ls /disk\ncat /disk/README\necho hi > /disk/a\ncat /disk/a\nreboot\n"
-          QEMU_SMOKE_EXPECT: "README;ZOS DISK README;hi;user: halted cleanly"
-        run: |
-          { sleep 1; printf "%b" "$QEMU_SMOKE_INPUT"; } | timeout 10s qemu-system-riscv32 \
-            -machine virt \
-            -bios /usr/lib/riscv32-linux-gnu/opensbi/generic/fw_dynamic.bin \
-            -nographic \
-            -kernel build/kernel.elf \
-            -drive file=build/zos.img,format=raw,if=none,id=hd0 \
-            -device virtio-blk-device,drive=hd0 > qemu-disk-smoke.log 2>&1 || true
-          grep -q "ZOS booting..." qemu-disk-smoke.log
-          old_ifs="$IFS"
-          IFS=";"
-          for pattern in $QEMU_SMOKE_EXPECT; do
-            grep -q "$pattern" qemu-disk-smoke.log
-          done
-          IFS="$old_ifs"
+      - name: Run disk regression
+        run: make disk-regression
