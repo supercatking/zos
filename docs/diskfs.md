@@ -56,6 +56,7 @@ direct 512-byte sectors, root-level directories, files inside those directories,
 unlink, and rename. Directories are encoded in the fixed root dirent table, so
 this is still a teaching format rather than a general filesystem.
 
-It does not yet support arbitrary-depth directories, directory rename with child
-path rewriting, indirect blocks, timestamps, permissions, fsck, or crash
-consistency.
+It does not yet support arbitrary-depth directories, non-empty directory rename,
+indirect blocks, timestamps, permissions, fsck, or crash consistency. Empty
+directories can be renamed; non-empty directory rename is rejected so child
+paths cannot become inconsistent.

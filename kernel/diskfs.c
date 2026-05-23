@@ -570,6 +570,7 @@ int diskfs_rename(const char *old_path, const char *new_path)
     const char *old_name;
     const char *new_name;
     int dirent_index;
+    uint32_t ino;
 
     if (!mounted ||
         disk_path_name(old_path, &old_name) != 0 ||
@@ -582,6 +583,13 @@ int diskfs_rename(const char *old_path, const char *new_path)
 
     dirent_index = find_dirent(old_name);
     if (dirent_index < 0) {
+        return -1;
+    }
+    ino = dirents[dirent_index].ino;
+    if (ino == 0 || ino > DISKFS_MAX_INODES) {
+        return -1;
+    }
+    if (inodes[ino - 1u].type == DISKFS_INODE_DIR && !dir_is_empty(old_name)) {
         return -1;
     }
     copy_name(dirents[dirent_index].name, new_name);

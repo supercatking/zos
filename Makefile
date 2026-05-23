@@ -250,8 +250,8 @@ disk-image:
 	python3 scripts/mkfs_zos.py $(BUILD_DIR)/zos.img
 
 disk-regression: build disk-image
-	QEMU_SMOKE_INPUT='mkdir /disk/tmp\necho hi > /disk/tmp/a\nls /disk\nls /disk/tmp\ncat /disk/tmp/a\nmv /disk/tmp/a /disk/tmp/b\ncat /disk/tmp/b\nstat /disk/BIG\nwc /disk/BIG\nrm /disk/tmp/b\nls /disk/tmp\nrmdir /disk/tmp\nls /disk\nreboot\n' \
-	QEMU_SMOKE_EXPECT='virtio-blk: queue ready;diskfs: mounted at /disk;tmp;a;hi;disk file /disk/BIG size=1191;lines=1 words=70 bytes=1191;README;BIG;user: halted cleanly' \
+	QEMU_SMOKE_INPUT='mkdir /disk/tmp\nmkdir /disk/other\necho hi > /disk/tmp/a\nls /disk\nls /disk/tmp\ncat /disk/tmp/a\nmv /disk/tmp /disk/new\nmv /disk/tmp/a /disk/other/b\ncat /disk/other/b\nstat /disk/BIG\nwc /disk/BIG\nrm /disk/other/b\nrmdir /disk/tmp\nrmdir /disk/other\nls /disk\nreboot\n' \
+	QEMU_SMOKE_EXPECT='virtio-blk: queue ready;diskfs: mounted at /disk;tmp;other;a;hi;mv: failed;disk file /disk/BIG size=1191;lines=1 words=70 bytes=1191;README;BIG;user: halted cleanly' \
 	sh -c '{ sleep 1; printf "%b" "$$QEMU_SMOKE_INPUT"; } | timeout 12s qemu-system-riscv32 -machine virt -bios $(OPENSBI_RV32) -nographic -kernel $(KERNEL_ELF) -drive file=$(BUILD_DIR)/zos.img,format=raw,if=none,id=hd0 -device virtio-blk-device,drive=hd0 > $(BUILD_DIR)/qemu-disk-smoke.log 2>&1 || true; grep -q "ZOS booting..." $(BUILD_DIR)/qemu-disk-smoke.log; old_ifs="$$IFS"; IFS=";"; for pattern in $$QEMU_SMOKE_EXPECT; do grep -q "$$pattern" $(BUILD_DIR)/qemu-disk-smoke.log; done; IFS="$$old_ifs"; echo "disk regression passed"'
 
 clean:
