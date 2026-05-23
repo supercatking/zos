@@ -949,6 +949,24 @@ uintptr_t user_fd_read(int fd, char *buf, uintptr_t len)
     case FILE_CONSOLE_IN:
         while (count < len) {
             char ch = console_getchar();
+
+            if (ch == 0x04) {
+                return count;
+            }
+            if (ch == 0x03) {
+                console_puts("^C\n");
+                if (count < len) {
+                    buf[count++] = '\n';
+                }
+                return count;
+            }
+            if (ch == '\b' || ch == 0x7f) {
+                if (count > 0) {
+                    count--;
+                    console_puts("\b \b");
+                }
+                continue;
+            }
             if (ch == '\r') {
                 ch = '\n';
             }

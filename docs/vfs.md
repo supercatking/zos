@@ -23,6 +23,10 @@ processes. `pipe` creates a read endpoint and write endpoint backed by a small
 in-kernel buffer, which the shell uses for single-stage pipelines such as
 `cat /README | grep ZOS`.
 
+Console fd `0` has a minimal line discipline in the syscall path: Backspace
+deletes one buffered character, Ctrl-D returns EOF for the current read, and
+Ctrl-C discards the current input line and returns a newline to the shell.
+
 ## Limits
 
 The VFS does not yet model inode lifetimes, fd flags, `select`, `poll`,
