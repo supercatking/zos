@@ -21,6 +21,7 @@ INODE_FILE = 1
 INODE_DIR = 2
 
 README = b"ZOS DISK README\nThis file is loaded from the simple disk filesystem.\n"
+BIG = (b"0123456789abcdef " * 70) + b"\n"
 
 
 def write_at(image: bytearray, sector: int, data: bytes) -> None:
@@ -61,14 +62,19 @@ def main() -> int:
     write_at(image, SUPER_SECTOR, superblock)
 
     inodes = bytearray(SECTOR * 2)
-    inodes[0:24] = inode(INODE_DIR, 32, [DIRENT_SECTOR])
+    inodes[0:24] = inode(INODE_DIR, 64, [DIRENT_SECTOR])
     inodes[24:48] = inode(INODE_FILE, len(README), [DATA_START_SECTOR])
+    big_blocks = [DATA_START_SECTOR + DIRECT_BLOCKS * 2 + i for i in range(3)]
+    inodes[48:72] = inode(INODE_FILE, len(BIG), big_blocks)
     write_at(image, INODE_SECTOR, inodes)
 
     dirents = bytearray(SECTOR)
     dirents[0:32] = dirent(2, "README")
+    dirents[32:64] = dirent(3, "BIG")
     write_at(image, DIRENT_SECTOR, dirents)
     write_at(image, DATA_START_SECTOR, README)
+    for i, block in enumerate(big_blocks):
+        write_at(image, block, BIG[i * SECTOR:(i + 1) * SECTOR])
 
     out.write_bytes(image)
     print(f"created {out} ({len(image)} bytes)")

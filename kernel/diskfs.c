@@ -199,7 +199,11 @@ static int alloc_inode(enum diskfs_inode_type type)
         if (inodes[i].type == DISKFS_INODE_FREE) {
             inodes[i].type = (uint32_t)type;
             inodes[i].size = 0;
-            inodes[i].blocks[0] = DISKFS_DATA_START_SECTOR + (uint32_t)i;
+            for (uintptr_t b = 0; b < DISKFS_DIRECT_BLOCKS; b++) {
+                inodes[i].blocks[b] =
+                    DISKFS_DATA_START_SECTOR +
+                    ((uint32_t)i * DISKFS_DIRECT_BLOCKS) + (uint32_t)b;
+            }
             return i;
         }
     }
@@ -398,12 +402,28 @@ uintptr_t diskfs_read(int fd, char *buf, uintptr_t len)
     }
 
     inode = &inodes[open_files[slot].ino - 1u];
-    if (block_read_sector(inode->blocks[0], sector) != 0) {
-        return (uintptr_t)-1;
-    }
-
     while (count < len && open_files[slot].offset < inode->size) {
-        buf[count++] = sector[open_files[slot].offset++];
+        uintptr_t block_index = open_files[slot].offset / BLOCK_SECTOR_SIZE;
+        uintptr_t block_offset = open_files[slot].offset % BLOCK_SECTOR_SIZE;
+        uintptr_t chunk = BLOCK_SECTOR_SIZE - block_offset;
+        uintptr_t remaining = inode->size - open_files[slot].offset;
+
+        if (block_index >= DISKFS_DIRECT_BLOCKS || inode->blocks[block_index] == 0) {
+            break;
+        }
+        if (chunk > len - count) {
+            chunk = len - count;
+        }
+        if (chunk > remaining) {
+            chunk = remaining;
+        }
+        if (block_read_sector(inode->blocks[block_index], sector) != 0) {
+            return (uintptr_t)-1;
+        }
+        for (uintptr_t i = 0; i < chunk; i++) {
+            buf[count++] = sector[block_offset + i];
+        }
+        open_files[slot].offset += chunk;
     }
     return count;
 }
@@ -420,15 +440,35 @@ uintptr_t diskfs_write(int fd, const char *buf, uintptr_t len)
     }
 
     inode = &inodes[open_files[slot].ino - 1u];
-    zero_bytes(sector, sizeof(sector));
-    (void)block_read_sector(inode->blocks[0], sector);
-    while (count < len && open_files[slot].offset < BLOCK_SECTOR_SIZE) {
-        sector[open_files[slot].offset++] = buf[count++];
+    while (count < len &&
+           open_files[slot].offset < DISKFS_DIRECT_BLOCKS * BLOCK_SECTOR_SIZE) {
+        uintptr_t block_index = open_files[slot].offset / BLOCK_SECTOR_SIZE;
+        uintptr_t block_offset = open_files[slot].offset % BLOCK_SECTOR_SIZE;
+        uintptr_t chunk = BLOCK_SECTOR_SIZE - block_offset;
+
+        if (inode->blocks[block_index] == 0) {
+            inode->blocks[block_index] =
+                DISKFS_DATA_START_SECTOR +
+                ((open_files[slot].ino - 1u) * DISKFS_DIRECT_BLOCKS) +
+                (uint32_t)block_index;
+        }
+        zero_bytes(sector, sizeof(sector));
+        (void)block_read_sector(inode->blocks[block_index], sector);
+        if (chunk > len - count) {
+            chunk = len - count;
+        }
+        for (uintptr_t i = 0; i < chunk; i++) {
+            sector[block_offset + i] = buf[count++];
+        }
+        if (block_write_sector(inode->blocks[block_index], sector) != 0) {
+            return (uintptr_t)-1;
+        }
+        open_files[slot].offset += chunk;
     }
     if (open_files[slot].offset > inode->size) {
         inode->size = open_files[slot].offset;
     }
-    if (block_write_sector(inode->blocks[0], sector) != 0 || sync_metadata() != 0) {
+    if (sync_metadata() != 0) {
         return (uintptr_t)-1;
     }
     return count;
