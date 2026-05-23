@@ -8,13 +8,13 @@ static int is_space(char ch)
 __attribute__((section(".text.start"), used))
 void _start(const char *line)
 {
-    const char *path = line != 0 && line[0] != '\0' ? line : "/README";
+    const char *path = line != 0 && line[0] != '\0' ? line : 0;
     char buf[128];
     uintptr_t bytes = 0;
     uintptr_t lines = 0;
     uintptr_t words = 0;
     int in_word = 0;
-    int fd = u_open(path);
+    int fd = path != 0 ? u_open(path) : 0;
 
     if (fd < 0) {
         u_write("wc: not found\n");
@@ -39,7 +39,9 @@ void _start(const char *line)
             }
         }
     }
-    u_close(fd);
+    if (path != 0) {
+        u_close(fd);
+    }
 
     u_write("lines=");
     u_put_uint(lines);

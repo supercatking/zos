@@ -872,6 +872,34 @@ int user_fd_close(int fd)
     return 0;
 }
 
+int user_fd_dup2(int oldfd, int newfd)
+{
+    int file_index;
+
+    if (current_proc == 0 ||
+        oldfd < 0 || oldfd >= PROC_FD_MAX ||
+        newfd < 0 || newfd >= PROC_FD_MAX) {
+        return -1;
+    }
+
+    file_index = current_proc->fds[oldfd];
+    if (file_index < 0 || file_index >= FILE_MAX ||
+        files[file_index].type == FILE_UNUSED) {
+        return -1;
+    }
+
+    if (oldfd == newfd) {
+        return newfd;
+    }
+
+    file_get(file_index);
+    if (current_proc->fds[newfd] >= 0) {
+        file_put(current_proc->fds[newfd]);
+    }
+    current_proc->fds[newfd] = file_index;
+    return newfd;
+}
+
 void user_timer_tick(struct trap_frame *tf)
 {
     if (current_proc == 0 || tf == 0) {

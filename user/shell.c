@@ -21,6 +21,7 @@ typedef unsigned int size_t;
 #define SYS_WAIT 18u
 #define SYS_GETPID 19u
 #define SYS_PROCINFO 20u
+#define SYS_DUP2 21u
 
 #define MAX_LINE 96
 #define MAX_ARGS 8
@@ -58,6 +59,11 @@ static long sys_open(const char *path)
 static long sys_close(int fd)
 {
     return syscall3(SYS_CLOSE, (uintptr_t)fd, 0, 0);
+}
+
+static long sys_dup2(int oldfd, int newfd)
+{
+    return syscall3(SYS_DUP2, (uintptr_t)oldfd, (uintptr_t)newfd, 0);
 }
 
 static long sys_create(const char *path)
@@ -701,14 +707,46 @@ static int cmd_false(int argc, char **argv)
     return 1;
 }
 
-static int has_redirect(int argc, char **argv)
+struct exec_command {
+    int argc;
+    char *argv[MAX_ARGS];
+    const char *stdin_path;
+    const char *stdout_path;
+    const char *stderr_path;
+};
+
+static int parse_exec_command(int argc, char **argv, struct exec_command *cmd)
 {
-    for (int i = 1; i < argc; i++) {
-        if (streq(argv[i], ">")) {
-            return 1;
+    cmd->argc = 0;
+    cmd->stdin_path = 0;
+    cmd->stdout_path = 0;
+    cmd->stderr_path = 0;
+
+    for (int i = 0; i < argc; i++) {
+        if (streq(argv[i], "<") || streq(argv[i], ">") || streq(argv[i], "2>")) {
+            if (i + 1 >= argc) {
+                puts("redirect: missing file\n");
+                return -1;
+            }
+            if (streq(argv[i], "<")) {
+                cmd->stdin_path = argv[i + 1];
+            } else if (streq(argv[i], ">")) {
+                cmd->stdout_path = argv[i + 1];
+            } else {
+                cmd->stderr_path = argv[i + 1];
+            }
+            i++;
+            continue;
         }
+
+        if (cmd->argc >= MAX_ARGS) {
+            puts("command: too many args\n");
+            return -1;
+        }
+        cmd->argv[cmd->argc++] = argv[i];
     }
-    return 0;
+
+    return cmd->argc == 0 ? -1 : 0;
 }
 
 static int should_exec_external(int argc, char **argv)
@@ -729,31 +767,71 @@ static int should_exec_external(int argc, char **argv)
         streq(argv[0], "true") || streq(argv[0], "false")) {
         return 1;
     }
-    if (streq(argv[0], "echo") && !has_redirect(argc, argv)) {
+    if (streq(argv[0], "echo")) {
         return 1;
     }
     return 0;
 }
 
-static int exec_external(int argc, char **argv)
+static int setup_redirects(const struct exec_command *cmd)
+{
+    if (cmd->stdin_path != 0) {
+        long fd = sys_open(cmd->stdin_path);
+        if (fd < 0 || sys_dup2((int)fd, 0) < 0) {
+            puts("redirect: input failed\n");
+            return -1;
+        }
+        (void)sys_close((int)fd);
+    }
+
+    if (cmd->stdout_path != 0) {
+        if (sys_create(cmd->stdout_path) < 0) {
+            puts("redirect: create failed\n");
+            return -1;
+        }
+        long fd = sys_open(cmd->stdout_path);
+        if (fd < 0 || sys_dup2((int)fd, 1) < 0) {
+            puts("redirect: output failed\n");
+            return -1;
+        }
+        (void)sys_close((int)fd);
+    }
+
+    if (cmd->stderr_path != 0) {
+        if (sys_create(cmd->stderr_path) < 0) {
+            puts("redirect: create failed\n");
+            return -1;
+        }
+        long fd = sys_open(cmd->stderr_path);
+        if (fd < 0 || sys_dup2((int)fd, 2) < 0) {
+            puts("redirect: stderr failed\n");
+            return -1;
+        }
+        (void)sys_close((int)fd);
+    }
+
+    return 0;
+}
+
+static int exec_external(const struct exec_command *cmd)
 {
     char path[32];
     char arg[96];
     int first_arg = 1;
 
-    if (starts_with(argv[0], "/bin/")) {
-        copy_string(path, argv[0], sizeof(path));
+    if (starts_with(cmd->argv[0], "/bin/")) {
+        copy_string(path, cmd->argv[0], sizeof(path));
     } else {
         copy_string(path, "/bin/", sizeof(path));
-        append_string(path, sizeof(path), argv[0]);
+        append_string(path, sizeof(path), cmd->argv[0]);
     }
 
     arg[0] = '\0';
-    for (int i = 1; i < argc; i++) {
+    for (int i = 1; i < cmd->argc; i++) {
         if (!first_arg) {
             append_string(arg, sizeof(arg), " ");
         }
-        append_string(arg, sizeof(arg), argv[i]);
+        append_string(arg, sizeof(arg), cmd->argv[i]);
         first_arg = 0;
     }
 
@@ -766,10 +844,18 @@ static int exec_external(int argc, char **argv)
 
 static int run_external(int argc, char **argv)
 {
+    struct exec_command cmd;
+    if (parse_exec_command(argc, argv, &cmd) != 0) {
+        return -1;
+    }
+
     long pid = sys_fork();
 
     if (pid == 0) {
-        (void)exec_external(argc, argv);
+        if (setup_redirects(&cmd) != 0) {
+            sys_exit(126);
+        }
+        (void)exec_external(&cmd);
         sys_exit(127);
     }
     if (pid < 0) {

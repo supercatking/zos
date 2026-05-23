@@ -16,9 +16,10 @@ ZOS routes file syscalls through a small VFS layer. The current interface covers
 
 ## File Descriptors
 
-Fd `0` currently reads from the serial terminal directly in the syscall layer.
-Fd `1` and `2` write to the serial terminal directly. Other descriptors are VFS
-descriptors. M15 should move toward standard fd semantics and add pipes.
+Each process owns a small fd table. Fd `0` starts as console input, fd `1` and
+`2` start as console output, and `open` installs VFS handles into free fd slots
+from `3` upward. `dup2` lets the shell redirect standard streams for child
+processes. M15 should add pipes next.
 
 ## Limits
 

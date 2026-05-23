@@ -23,6 +23,7 @@
 #define SYS_WAIT 18u
 #define SYS_GETPID 19u
 #define SYS_PROCINFO 20u
+#define SYS_DUP2 21u
 
 void syscall_handle(struct trap_frame *tf);
 

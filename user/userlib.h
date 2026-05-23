@@ -16,6 +16,7 @@ typedef unsigned int size_t;
 #define SYS_WAIT 18u
 #define SYS_GETPID 19u
 #define SYS_PROCINFO 20u
+#define SYS_DUP2 21u
 
 static U_UNUSED long syscall3(uintptr_t number, uintptr_t a0, uintptr_t a1, uintptr_t a2)
 {
@@ -148,6 +149,11 @@ static U_UNUSED long u_read(int fd, char *buf, size_t len)
 static U_UNUSED void u_close(int fd)
 {
     (void)syscall3(SYS_CLOSE, (uintptr_t)fd, 0, 0);
+}
+
+static U_UNUSED long u_dup2(int oldfd, int newfd)
+{
+    return syscall3(SYS_DUP2, (uintptr_t)oldfd, (uintptr_t)newfd, 0);
 }
 
 static U_UNUSED long u_list(const char *path, char *buf, size_t len)

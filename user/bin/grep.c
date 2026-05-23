@@ -27,6 +27,7 @@ void _start(const char *line)
     char *pattern = args;
     char *path = 0;
     char buf[128];
+    int fd = 0;
 
     if (line == 0 || line[0] == '\0') {
         u_write("grep: usage grep pattern file\n");
@@ -45,15 +46,16 @@ void _start(const char *line)
         }
     }
 
-    if (path == 0 || path[0] == '\0') {
-        u_write("grep: usage grep pattern file\n");
-        u_exit(1);
+    if (path != 0 && path[0] == '\0') {
+        path = 0;
     }
 
-    int fd = u_open(path);
-    if (fd < 0) {
-        u_write("grep: not found\n");
-        u_exit(1);
+    if (path != 0) {
+        fd = u_open(path);
+        if (fd < 0) {
+            u_write("grep: not found\n");
+            u_exit(1);
+        }
     }
 
     for (;;) {
@@ -69,6 +71,8 @@ void _start(const char *line)
             }
         }
     }
-    u_close(fd);
+    if (path != 0) {
+        u_close(fd);
+    }
     u_exit(0);
 }

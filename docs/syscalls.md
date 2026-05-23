@@ -35,12 +35,17 @@ The trap handler advances `sepc` by 4 before returning from handled syscalls.
 | 18 | `wait` | none | child pid or `-1` |
 | 19 | `getpid` | none | current pid |
 | 20 | `procinfo` | `a0=buf`, `a1=len` | bytes written |
+| 21 | `dup2` | `a0=oldfd`, `a1=newfd` | duplicated fd or `-1` |
 
-Fd `0` reads from the serial terminal. Fd `1` and `2` write to the serial
-terminal. File descriptors from `3` upward refer to ramfs files and support
-`read`, `write`, and `close`. M11 routes file syscalls through the VFS layer:
-ramfs is mounted at `/`, `/dev/console` is a console device node, and `/proc/*`
-nodes are generated dynamically.
+Each process owns a small file descriptor table. Fd `0` starts as the serial
+terminal input, and fd `1`/`2` start as serial terminal output. File descriptors
+from `3` upward refer to VFS handles. `dup2` replaces `newfd` with another
+reference to `oldfd`, which lets the shell implement standard input, output,
+and error redirection.
+
+M11 routes file syscalls through the VFS layer: ramfs is mounted at `/`,
+`/dev/console` is a console device node, `/proc/*` nodes are generated
+dynamically, and `/disk/*` is available when a virtio-blk disk image is mounted.
 
 ## Current User Program
 
