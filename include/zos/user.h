@@ -18,6 +18,7 @@ int user_exec(const char *path, const char *arg, struct trap_frame *tf);
 int user_current_is_shell(void);
 int user_fork(struct trap_frame *tf);
 int user_wait(struct trap_frame *tf);
+int user_sleep(uintptr_t ticks, struct trap_frame *tf);
 int user_getpid(void);
 uintptr_t user_procinfo(char *buf, uintptr_t len);
 int user_exit_process(uintptr_t status, struct trap_frame *tf);

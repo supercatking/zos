@@ -5,24 +5,6 @@
 #include <zos/user.h>
 #include <zos/vfs.h>
 
-#define TIMEBASE_HZ 10000000ull
-#define SLEEP_TICK_HZ 100ull
-
-static uint64_t read_time(void)
-{
-    uint32_t hi;
-    uint32_t lo;
-    uint32_t hi2;
-
-    do {
-        __asm__ volatile("rdtimeh %0" : "=r"(hi));
-        __asm__ volatile("rdtime %0" : "=r"(lo));
-        __asm__ volatile("rdtimeh %0" : "=r"(hi2));
-    } while (hi != hi2);
-
-    return ((uint64_t)hi << 32) | lo;
-}
-
 static uintptr_t sys_write(uintptr_t fd, const char *buf, uintptr_t len)
 {
     return user_fd_write((int)fd, buf, len);
@@ -59,18 +41,6 @@ static void sys_exit(uintptr_t status, struct trap_frame *tf)
     for (;;) {
         __asm__ volatile("wfi");
     }
-}
-
-static uintptr_t sys_sleep(uintptr_t ticks)
-{
-    uint64_t interval = (TIMEBASE_HZ / SLEEP_TICK_HZ) * (uint64_t)ticks;
-    uint64_t until = read_time() + interval;
-
-    while (read_time() < until) {
-        __asm__ volatile("nop");
-    }
-
-    return 0;
 }
 
 static uintptr_t sys_kill(uintptr_t pid)
@@ -117,8 +87,13 @@ void syscall_handle(struct trap_frame *tf)
         tf->a0 = (uintptr_t)user_fd_close((int)tf->a0);
         break;
     case SYS_SLEEP:
-        tf->a0 = sys_sleep(tf->a0);
+    {
+        int sleep_result = user_sleep(tf->a0, tf);
+        if (sleep_result != -2) {
+            tf->a0 = (uintptr_t)sleep_result;
+        }
         break;
+    }
     case SYS_KILL:
         tf->a0 = sys_kill(tf->a0);
         break;

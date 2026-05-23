@@ -5,6 +5,7 @@
 #include <zos/panic.h>
 #include <zos/pmm.h>
 #include <zos/riscv.h>
+#include <zos/timer.h>
 #include <zos/trap.h>
 #include <zos/user.h>
 #include <zos/vfs.h>
@@ -95,6 +96,7 @@ struct proc {
     struct trap_frame tf;
     char program[32];
     int waiting;
+    uint64_t sleep_until;
     int fds[PROC_FD_MAX];
 };
 
@@ -359,6 +361,21 @@ static uintptr_t append_uint(char *buf, uintptr_t out, uintptr_t len, uintptr_t 
     return out;
 }
 
+static uint64_t read_time(void)
+{
+    uint32_t hi;
+    uint32_t lo;
+    uint32_t hi2;
+
+    do {
+        __asm__ volatile("rdtimeh %0" : "=r"(hi));
+        __asm__ volatile("rdtime %0" : "=r"(lo));
+        __asm__ volatile("rdtimeh %0" : "=r"(hi2));
+    } while (hi != hi2);
+
+    return ((uint64_t)hi << 32) | lo;
+}
+
 static void add_program(const char *path, const char *start, const char *end)
 {
     if (initramfs_add_static_file(path, start, (uintptr_t)(end - start)) != 0) {
@@ -601,6 +618,28 @@ static struct proc *pick_next_runnable(void)
     return 0;
 }
 
+static int has_runnable_except_current(void)
+{
+    for (size_t i = 0; i < sizeof(procs) / sizeof(procs[0]); i++) {
+        if (&procs[i] != current_proc && procs[i].state == PROC_RUNNABLE) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void wake_sleepers(void)
+{
+    uint64_t now = timer_ticks();
+
+    for (size_t i = 0; i < sizeof(procs) / sizeof(procs[0]); i++) {
+        if (procs[i].state == PROC_SLEEPING && now >= procs[i].sleep_until) {
+            procs[i].sleep_until = 0;
+            procs[i].state = PROC_RUNNABLE;
+        }
+    }
+}
+
 static void schedule_next(struct trap_frame *tf)
 {
     struct proc *next;
@@ -644,6 +683,7 @@ void user_init(void)
     init->exit_status = 0;
     init->state = PROC_RUNNING;
     init->waiting = 0;
+    init->sleep_until = 0;
     proc_fd_init_stdio(init);
     copy_string(init->program, "/bin/sh", sizeof(init->program));
     if (proc_alloc_address_space(init) != 0) {
@@ -709,6 +749,7 @@ int user_fork(struct trap_frame *tf)
             procs[i].exit_status = 0;
             procs[i].state = PROC_RUNNABLE;
             procs[i].waiting = 0;
+            procs[i].sleep_until = 0;
             proc_fd_copy(&procs[i], current_proc);
             if (proc_alloc_address_space(&procs[i]) != 0) {
                 proc_fd_close_all(&procs[i]);
@@ -791,6 +832,34 @@ int user_wait(struct trap_frame *tf)
     }
 
     return -1;
+}
+
+int user_sleep(uintptr_t ticks, struct trap_frame *tf)
+{
+    uint64_t until = timer_ticks() + (uint64_t)ticks;
+
+    if (current_proc == 0 || tf == 0) {
+        return -1;
+    }
+    if (ticks == 0) {
+        return 0;
+    }
+
+    if (!has_runnable_except_current()) {
+        uint64_t raw_until = read_time() + (10000000ull / TIMER_HZ) * (uint64_t)ticks;
+
+        while (read_time() < raw_until) {
+            __asm__ volatile("nop");
+        }
+        return 0;
+    }
+
+    current_proc->tf = *tf;
+    current_proc->tf.a0 = 0;
+    current_proc->sleep_until = until;
+    current_proc->state = PROC_SLEEPING;
+    schedule_next(tf);
+    return -2;
 }
 
 int user_exec(const char *path, const char *arg, struct trap_frame *tf)
@@ -1058,6 +1127,7 @@ void user_timer_tick(struct trap_frame *tf)
         return;
     }
 
+    wake_sleepers();
     if (pick_next_runnable() != 0) {
         schedule_next(tf);
     }
