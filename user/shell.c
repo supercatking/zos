@@ -773,6 +773,10 @@ static int should_exec_external(int argc, char **argv)
         streq(argv[0], "true") || streq(argv[0], "false")) {
         return 1;
     }
+    if (streq(argv[0], "rm") || streq(argv[0], "mkdir") ||
+        streq(argv[0], "rmdir") || streq(argv[0], "mv")) {
+        return 1;
+    }
     if (streq(argv[0], "echo")) {
         return 1;
     }

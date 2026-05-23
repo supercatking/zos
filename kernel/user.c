@@ -45,6 +45,14 @@ extern char _binary_build_user_bin_malloctest_elf_start[];
 extern char _binary_build_user_bin_malloctest_elf_end[];
 extern char _binary_build_user_bin_badtest_elf_start[];
 extern char _binary_build_user_bin_badtest_elf_end[];
+extern char _binary_build_user_bin_rm_elf_start[];
+extern char _binary_build_user_bin_rm_elf_end[];
+extern char _binary_build_user_bin_mkdir_elf_start[];
+extern char _binary_build_user_bin_mkdir_elf_end[];
+extern char _binary_build_user_bin_rmdir_elf_start[];
+extern char _binary_build_user_bin_rmdir_elf_end[];
+extern char _binary_build_user_bin_mv_elf_start[];
+extern char _binary_build_user_bin_mv_elf_end[];
 
 static size_t current_text_pages;
 static uintptr_t init_entry = USER_TEXT_BASE;
@@ -425,6 +433,14 @@ void user_register_programs(void)
                 _binary_build_user_bin_malloctest_elf_end);
     add_program("/bin/badtest", _binary_build_user_bin_badtest_elf_start,
                 _binary_build_user_bin_badtest_elf_end);
+    add_program("/bin/rm", _binary_build_user_bin_rm_elf_start,
+                _binary_build_user_bin_rm_elf_end);
+    add_program("/bin/mkdir", _binary_build_user_bin_mkdir_elf_start,
+                _binary_build_user_bin_mkdir_elf_end);
+    add_program("/bin/rmdir", _binary_build_user_bin_rmdir_elf_start,
+                _binary_build_user_bin_rmdir_elf_end);
+    add_program("/bin/mv", _binary_build_user_bin_mv_elf_start,
+                _binary_build_user_bin_mv_elf_end);
 }
 
 static void copy_bytes(void *dst, const void *src, size_t len)

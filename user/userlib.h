@@ -10,7 +10,10 @@ typedef unsigned int size_t;
 #define SYS_CLOSE 5u
 #define SYS_CREATE 8u
 #define SYS_LIST 9u
+#define SYS_UNLINK 10u
 #define SYS_STAT 11u
+#define SYS_MKDIR 12u
+#define SYS_RENAME 13u
 #define SYS_EXEC 16u
 #define SYS_FORK 17u
 #define SYS_WAIT 18u
@@ -151,6 +154,21 @@ static U_UNUSED int u_open(const char *path)
 static U_UNUSED int u_create(const char *path)
 {
     return (int)syscall3(SYS_CREATE, (uintptr_t)path, 0, 0);
+}
+
+static U_UNUSED int u_unlink(const char *path)
+{
+    return (int)syscall3(SYS_UNLINK, (uintptr_t)path, 0, 0);
+}
+
+static U_UNUSED int u_mkdir(const char *path)
+{
+    return (int)syscall3(SYS_MKDIR, (uintptr_t)path, 0, 0);
+}
+
+static U_UNUSED int u_rename(const char *old_path, const char *new_path)
+{
+    return (int)syscall3(SYS_RENAME, (uintptr_t)old_path, (uintptr_t)new_path, 0);
 }
 
 static U_UNUSED long u_read(int fd, char *buf, size_t len)
