@@ -27,6 +27,22 @@ The allocator stores a singly linked free list inside free pages. It exposes:
 
 Invalid frees and double frees panic. `NULL` frees are ignored.
 
+## Kernel Heap
+
+M18 adds a small fixed-size kernel allocator for kernel objects that do not need
+full pages. It exposes:
+
+- `kmalloc_init()`
+- `kmalloc(size)`
+- `kfree(ptr)`
+- `kmalloc_self_test()`
+
+The first implementation uses size classes of 16, 32, 64, 128, and 256 bytes.
+Each class is refilled from whole physical pages, and `kfree()` returns objects
+to the matching class free list. It does not yet return fully empty pages to the
+physical page allocator, and allocations larger than 256 bytes still return
+`NULL`.
+
 ## Sv32 Paging
 
 The first page table is an identity map. That keeps the current kernel addresses

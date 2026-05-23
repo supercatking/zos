@@ -4,6 +4,7 @@
 #include <zos/diskfs.h>
 #include <zos/elf.h>
 #include <zos/initramfs.h>
+#include <zos/kmalloc.h>
 #include <zos/pmm.h>
 #include <zos/riscv.h>
 #include <zos/thread.h>
@@ -75,6 +76,8 @@ void kernel_main(uintptr_t hart_id, uintptr_t dtb)
 
     pmm_init();
     pmm_self_test();
+    kmalloc_init();
+    kmalloc_self_test();
     vm_init();
     vm_enable_kernel_paging();
     console_puts("vm: paging enabled\n");

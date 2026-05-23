@@ -71,6 +71,7 @@ KERNEL_SRCS := \
 	kernel/timer.c \
 	kernel/thread.c \
 	kernel/pmm.c \
+	kernel/kmalloc.c \
 	kernel/switch.S \
 	kernel/elf.c \
 	kernel/vfs.c \
