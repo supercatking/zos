@@ -1,57 +1,58 @@
 # ZOS
 
-ZOS is a small RISC-V32 teaching operating system. The goal is to grow it in
-clear milestones from a bootable kernel skeleton into a tiny multi-tasking OS
-with user programs, system calls, and a simple file system.
+ZOS is a small RISC-V32 teaching operating system that runs on QEMU's `virt`
+machine through OpenSBI. The project goal is to grow a readable kernel into a
+Linux-like OS with user processes, system calls, a shell, VFS, and block-backed
+storage.
 
-The project is intentionally modest: readable code, repeatable builds, and
-documentation that explains why each subsystem exists.
+The implementation is intentionally modest: clear subsystem boundaries,
+repeatable QEMU validation, and small milestone commits.
 
 ## Current Status
 
-ZOS is at the bootstrap stage.
+ZOS has progressed through M14:
 
-- M0 project layout, build targets, and toolchain notes are present.
-- M1 has a minimal RISC-V32 supervisor-mode kernel entry and UART console.
-- The first runnable target is a RISC-V32 `virt` machine booting through
-  OpenSBI under QEMU and printing early console output.
+- RISC-V32 S-mode kernel boot through OpenSBI.
+- UART console, traps, timer interrupts, physical pages, and Sv32 paging.
+- User-mode ELF programs with per-process page tables and kernel trap stacks.
+- Process syscalls: `fork`, `exec`, `wait`, `exit`, `getpid`.
+- Timer-driven round-robin scheduling for runnable user processes.
+- VFS with ramfs mounted at `/`, procfs mounted at `/proc`, and console at
+  `/dev/console`.
+- Virtio-blk probing, a small block cache, and a simple persistent disk
+  filesystem mounted at `/disk` when a disk image is attached.
+- User shell plus embedded `/bin/*` programs including `echo`, `cat`, `ls`,
+  `help`, `pwd`, `stat`, `grep`, `wc`, `true`, `false`, and regression tests.
+- GitHub Actions CI for build, QEMU regression, disk image creation, and
+  virtio-backed disk smoke testing.
 
-See [docs/roadmap.md](docs/roadmap.md) for the milestone plan.
+The next development line is M15: standard fd semantics, redirection, and pipes.
 
 ## Prerequisites
 
-Use WSL/Ubuntu or a native Ubuntu environment. The current expected tools are:
-
-- `make`
-- `riscv64-unknown-elf-gcc` or `riscv64-linux-gnu-gcc`
-- matching GNU binutils for RISC-V
-- `qemu-system-riscv32`
-- `gdb-multiarch` or `riscv64-unknown-elf-gdb`
-
-Some machines will not have the RISC-V QEMU and cross-toolchain packages
-installed yet. Install them with `apt` as described in
-[docs/toolchain.md](docs/toolchain.md). `sudo` may prompt for your Linux
-password.
-
-## Build
-
-Build the kernel:
+Use WSL/Ubuntu or a native Ubuntu environment.
 
 ```sh
-make build
+sudo apt-get update && sudo apt-get install -y \
+  qemu-system-misc \
+  opensbi \
+  gcc-riscv64-unknown-elf \
+  binutils-riscv64-unknown-elf \
+  gdb-multiarch \
+  make \
+  python3
 ```
 
-Common targets:
+See [docs/toolchain.md](docs/toolchain.md) for troubleshooting.
+
+## Build and Run
 
 ```sh
-make clean
+make clean build
 make run
-make test
 ```
 
-## Run
-
-The expected QEMU command shape for the first kernel image is:
+Manual QEMU command:
 
 ```sh
 qemu-system-riscv32 \
@@ -61,26 +62,45 @@ qemu-system-riscv32 \
   -kernel build/kernel.elf
 ```
 
-When `make run` exists, prefer:
+Run with a persistent disk image:
 
 ```sh
-make run
+make clean build disk-image
+qemu-system-riscv32 \
+  -machine virt \
+  -nographic \
+  -bios /usr/lib/riscv32-linux-gnu/opensbi/generic/fw_dynamic.bin \
+  -kernel build/kernel.elf \
+  -drive file=build/zos.img,format=raw,if=none,id=hd0 \
+  -device virtio-blk-device,drive=hd0
 ```
 
 ## Test
 
-The intended test entrypoint is:
-
 ```sh
 make test
+make regression
+make disk-image
 ```
 
-Early tests may be smoke tests that build the kernel, boot it in QEMU, and check
-for expected serial output.
+`make regression` drives the shell through user-program execution, process
+tests, VFS/procfs checks, file creation, redirection, and clean shutdown.
 
-## Notes
+## Documentation
 
-- Keep the teaching path simple before adding optimizations.
-- Prefer small, reviewable milestone changes.
-- Do not assume host tools are installed; document missing dependencies and the
-  install command when a tool is required.
+- [docs/roadmap.md](docs/roadmap.md): milestone status and next steps.
+- [docs/syscalls.md](docs/syscalls.md): syscall ABI and current syscall table.
+- [docs/memory.md](docs/memory.md): physical memory, Sv32, and process address
+  spaces.
+- [docs/process.md](docs/process.md): process and scheduler model.
+- [docs/vfs.md](docs/vfs.md): VFS, ramfs, procfs, console, and disk mounts.
+- [docs/diskfs.md](docs/diskfs.md): simple on-disk filesystem format.
+- [docs/initramfs.md](docs/initramfs.md): shell, ramfs, and smoke test notes.
+- [docs/debugging.md](docs/debugging.md): QEMU/GDB workflow.
+
+## Current Limits
+
+ZOS is not Linux ABI compatible. It is single-hart, has a small fixed process
+table, simple file descriptors, no pipes yet, no real TTY line discipline, no
+signals, no demand paging, no networking, and a deliberately simple disk
+filesystem.
